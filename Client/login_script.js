@@ -1,10 +1,9 @@
 // login_script.js
 
-const APPS_SCRIPT_POST_URL =
-  "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
+const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
 
 const PYTHON_API_LOGIN_URL = "https://instruksi-lapangan.onrender.com/api/login";
-// const PYTHON_API_LOGIN_URL = "https://cuma-backend.web.id/api/login";
+
 async function logLoginAttempt(username, cabang, status) {
   const logData = {
     requestType: "loginAttempt",
@@ -50,9 +49,8 @@ document.addEventListener("DOMContentLoaded", () => {
   loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const loginType = document.getElementById("loginType")?.value || "";
-    const username = loginForm.username.value;
-    const password = passwordInput.value;
+      const username = loginForm.username.value;
+      const password = passwordInput.value;
 
     loginMessage.textContent = "Logging in...";
     loginMessage.className = "login-message";
@@ -72,35 +70,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const userRole = (result.role || "").toUpperCase();
 
-        // ===========================================
-        // VALIDASI ROLE BERDASARKAN loginType
-        // ===========================================
-
-        // LOGIN RAB = hanya KONTRAKTOR
-        if (loginType === "rab") {
-          if (userRole !== "BRANCH BUILDING SUPPORT") {
-            loginMessage.textContent =
-              "Akses ditolak. Halaman Instruksi Lapangan hanya untuk BRANCH BUILDING SUPPORT.";
-            loginMessage.className = "login-message error";
-            return; // Tetap di halaman login
-          }
+        // Only allow BRANCH MANAGER SUPPORT to access the Gantt Chart
+        if (userRole !== "BRANCH BUILDING SUPPORT") {
+          loginMessage.textContent =
+            "Akses ditolak. Halaman Gantt Chart hanya untuk BRANCH BUILDING SUPPORT.";
+          loginMessage.className = "login-message error";
+          return; // Stay on login page
         }
 
-        // LOGIN SPK = hanya MANAGER
-        if (loginType === "spk") {
-          if (
-            userRole !== "MANAGER" &&
-            userRole !== "BRANCH BUILDING & MAINTENANCE MANAGER"
-          ) {
-            loginMessage.textContent =
-              "Akses ditolak. Halaman SPK hanya untuk MANAGER.";
-            loginMessage.className = "login-message error";
-            return;
-          }
-        }
-
-        // Jika role sesuai → lanjut login
-        loginMessage.textContent = "Login berhasil! Mengarahkan...";
+        // Role is allowed → proceed
+        loginMessage.textContent = "Login berhasil! Mengarahkan ke Gantt Chart...";
         loginMessage.className = "login-message success";
 
         sessionStorage.setItem("authenticated", "true");
@@ -109,16 +88,8 @@ document.addEventListener("DOMContentLoaded", () => {
         sessionStorage.setItem("userRole", userRole);
 
         setTimeout(() => {
-          if (loginType === "rab") {
-            window.location.href = "/Estimasi_rab/index.html";
-          }
-          else if (loginType === "spk") {
-            window.location.href = "/SPK_form/index.html";
-          }
-          else {
-            window.location.href = "/";
-          }
-        }, 1200);
+          window.location.href = "/Chart/index.html";
+        }, 900);
       } else {
         if (result.message === "Invalid credentials") {
           loginMessage.textContent =

@@ -159,6 +159,26 @@ class GoogleServiceProvider:
             print(f"Error saat mengambil data SPK by cabang: {e}")
             return []
 
+    def get_all_spk_ulok(self):
+        """Return unique Nomor Ulok values from SPK sheet."""
+        try:
+            worksheet = self.sheet.worksheet(config.SPK_DATA_SHEET_NAME)
+            records = worksheet.get_all_records()
+
+            ulok_list = []
+            seen = set()
+            for record in records:
+                ulok = str(record.get('Nomor Ulok', '')).strip()
+                if not ulok or ulok in seen:
+                    continue
+                seen.add(ulok)
+                ulok_list.append(ulok)
+
+            return ulok_list
+        except Exception as e:
+            print(f"Error saat mengambil daftar Nomor Ulok SPK: {e}")
+            raise
+
     def get_user_info_by_cabang(self, cabang):
         pic_list, koordinator_info, manager_info = [], {}, {}
         try:

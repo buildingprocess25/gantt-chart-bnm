@@ -23,8 +23,7 @@
             height: auto;
             position: absolute;
             left: 25px;
-            top: 25px;
-            bottom: 25px;
+            top: 50%;
             transform: translateY(-50%);
         }
 

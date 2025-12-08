@@ -1,21 +1,18 @@
-        * {
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f6;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-                
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: white;
-            padding: 20px;
-            min-height: 100vh;
+            color: #2d3748;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         header {
             background-color: #ffffff;
             color: #1a202c;
             text-align: center;
-            padding: 1rem;
+            padding: 1 1.5rem;
             border-bottom: 1px solid #e2e8f0;
             display: flex;
             align-items: center;
@@ -29,8 +26,7 @@
             height: auto;
             position: absolute;
             left: 25px;
-            top: 25px;
-            bottom: 25px;
+            top: 50%;
             transform: translateY(-50%);
         }
 

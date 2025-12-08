@@ -1,18 +1,20 @@
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7f6;
+        * {
             margin: 0;
             padding: 0;
-            color: #2d3748;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
+            box-sizing: border-box;
+        }
+                
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: white;
+            min-height: 100vh;
         }
 
         header {
             background-color: #ffffff;
             color: #1a202c;
             text-align: center;
-            padding: 1 1.5rem;
+            padding: 1rem 1.5rem;
             border-bottom: 1px solid #e2e8f0;
             display: flex;
             align-items: center;
@@ -26,7 +28,8 @@
             height: auto;
             position: absolute;
             left: 25px;
-            top: 50%;
+            top: 25px;
+            bottom: 25px;
             transform: translateY(-50%);
         }
 

@@ -25,11 +25,12 @@
         }
 
         .header-logo {
-            width: 140px; /* Increased logo size for better presence */
+            width: 140px;
             height: auto;
             position: absolute;
             left: 25px;
-            top: 50%;
+            top: 25px;
+            bottom: 25px;
             transform: translateY(-50%);
         }
 

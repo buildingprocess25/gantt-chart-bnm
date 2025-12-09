@@ -129,7 +129,8 @@
         
         .chart-header {
             display: flex;
-            margin-bottom: 15px;
+            margin-bottom: 0; /* Hapus margin bawah agar menyatu */
+            border-bottom: 1px solid #e9ecef;
         }
         
         .task-column {
@@ -142,10 +143,30 @@
         }
         
         .timeline-column {
-            flex: 1;
             display: flex;
-            border-radius: 0 6px 0 0;
-            overflow: hidden;
+            overflow: visible; /* Penting agar header ikut scroll */
+        }
+
+        .day-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            font-size: 10px;
+            color: #495057;
+            box-sizing: border-box; /* Agar padding tidak menambah width */
+            flex-shrink: 0; /* Mencegah kolom mengecil */
+        }
+
+        .day-header span.d-date {
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .day-header span.d-month {
+            font-size: 9px;
+            color: #868e96;
         }
         
         .month {
@@ -198,11 +219,20 @@
         }
         
         .timeline {
-            flex: 1;
-            display: flex;
             position: relative;
-            padding: 10px 5px;
-            overflow: visible;
+            display: block; /* Ubah dari flex ke block agar absolute positioning akurat */
+            height: 100%;
+            overflow: hidden; /* Mencegah bar keluar jalur */
+            box-sizing: border-box;
+        }
+
+        .grid-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            border-right: 1px dashed #f1f3f5;
+            z-index: 1;
+            pointer-events: none;
         }
         
         .bar {

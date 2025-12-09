@@ -187,171 +187,187 @@ function renderChart() {
     if (!currentProject) return;
     
     const chart = document.getElementById('ganttChart');
+    const DAY_WIDTH = 40; // Lebar satu kolom hari dalam Pixel (bisa diubah)
     
-    // 1. CARI HARI TERAKHIR (Max End Day)
+    // 1. CARI HARI TERAKHIR
     let maxTaskEndDay = 0;
     currentTasks.forEach(task => {
         const end = task.start + task.duration;
         if (end > maxTaskEndDay) maxTaskEndDay = end;
     });
 
-    // 2. TENTUKAN TOTAL HARI
-    const defaultDays = currentProject.work === 'ME' ? totalDaysME : totalDaysSipil;
-    const actualMaxDays = Math.max(defaultDays, maxTaskEndDay + 5);
-    const dynamicMonthsCount = Math.ceil(actualMaxDays / 30);
-    const renderingTotalDays = dynamicMonthsCount * 30;
+    // Tambahkan buffer hari agar chart tidak terlalu pas di kanan
+    const totalDaysToRender = Math.max(
+        (currentProject.work === 'ME' ? totalDaysME : totalDaysSipil), 
+        maxTaskEndDay + 10
+    );
 
-    // --- LOGIKA BARU UNTUK TANGGAL ---
-    // Ambil start date dari project, atau default ke hari ini jika kosong
+    // Hitung total lebar chart dalam pixel
+    const totalChartWidth = totalDaysToRender * DAY_WIDTH;
+
+    // Ambil start date proyek
     const projectStartDate = currentProject.startDate ? new Date(currentProject.startDate) : new Date();
 
+    // --- RENDER HEADER ---
     let html = '<div class="chart-header">';
+    
+    // Kolom Kiri (Nama Tahapan) - Fixed Width
     html += '<div class="task-column">Tahapan</div>';
-    html += '<div class="timeline-column">';
     
-    // Render Header dengan Tanggal (Per blok 30 hari)
-    for (let i = 0; i < dynamicMonthsCount; i++) {
-        // Hitung tanggal awal blok ini
-        const blockStart = new Date(projectStartDate);
-        blockStart.setDate(projectStartDate.getDate() + (i * 30));
+    // Kolom Kanan (Timeline Header)
+    html += `<div class="timeline-column" style="width: ${totalChartWidth}px;">`;
+    
+    // Loop untuk membuat Header per Tanggal
+    for (let i = 0; i < totalDaysToRender; i++) {
+        const currentDate = new Date(projectStartDate);
+        currentDate.setDate(projectStartDate.getDate() + i);
 
-        // Hitung tanggal akhir blok ini
-        const blockEnd = new Date(blockStart);
-        blockEnd.setDate(blockStart.getDate() + 29); // range 30 hari
+        const dateNum = currentDate.getDate();
+        const monthName = currentDate.toLocaleDateString('id-ID', { month: 'short' });
+        
+        // Warna background beda untuk hari Minggu (opsional, index 0 = Minggu)
+        const isSunday = currentDate.getDay() === 0;
+        const bgStyle = isSunday ? 'background-color: #ffe3e3;' : '';
 
-        // Format tanggal (Contoh: 1 Jan 24 - 30 Jan 24)
-        const label = `${formatDateID(blockStart)} - ${formatDateID(blockEnd)}`;
-
-        // Render kolom
-        html += `<div class="month" style="font-size: 11px; display:flex; align-items:center; justify-content:center;">${label}</div>`;
+        html += `
+            <div class="day-header" style="width: ${DAY_WIDTH}px; ${bgStyle}">
+                <span class="d-date">${dateNum}</span>
+                <span class="d-month">${monthName}</span>
+            </div>
+        `;
     }
-    html += '</div></div>';
+    html += '</div></div>'; // Tutup timeline-column & chart-header
     
+    // --- RENDER BODY (TASKS) ---
     html += '<div class="chart-body">';
     
     const originalTemplate = currentProject.work === 'ME' ? taskTemplateME : taskTemplateSipil;
     
-    // Render tasks
     currentTasks.forEach(task => {
-        const endDayInt = task.start + task.duration;
-        
-        // Hitung Tanggal Real untuk Tooltip
+        // Hitung Tanggal Real
         const taskRealStart = new Date(projectStartDate);
-        taskRealStart.setDate(projectStartDate.getDate() + (task.start - 1)); // -1 karena start hari ke-1
+        taskRealStart.setDate(projectStartDate.getDate() + (task.start - 1));
         
         const taskRealEnd = new Date(taskRealStart);
         taskRealEnd.setDate(taskRealStart.getDate() + task.duration);
 
-        const leftPercent = (task.start / renderingTotalDays) * 100;
-        const widthPercent = (task.duration / renderingTotalDays) * 100;
+        // --- LOGIKA BARU (PIXEL BASE) ---
+        // start - 1 karena hari ke-1 dimulai di pixel 0
+        const leftPos = (task.start - 1) * DAY_WIDTH; 
+        const widthPos = task.duration * DAY_WIDTH;
         
         const originalTask = originalTemplate.find(t => t.id === task.id);
         const isDelayed = task.start > originalTask.start;
-        const isCompleted = task.progress === 100;
+        const isCompleted = task.progress === 100; // Asumsi ada field progress
         
         let barClass = 'on-time';
         if (isCompleted) barClass = 'completed';
         else if (isDelayed) barClass = 'delayed';
         
-        // Update Tooltip dengan Tanggal Asli
         const tooltipText = `${task.name}\n${formatDateID(taskRealStart)} s/d ${formatDateID(taskRealEnd)}\n(${task.duration} hari)`;
 
-        html += '<div class="task-row" data-task-id="' + task.id + '">';
+        html += '<div class="task-row">';
+        
+        // Kolom Nama Task
         html += `<div class="task-name">
             <span>${task.name}</span>
             <span class="task-duration">Durasi: ${task.duration} hari</span>
         </div>`;
-        html += '<div class="timeline">';
-        html += `<div class="bar ${barClass}" data-task-id="${task.id}" style="left: ${leftPercent}%; width: ${widthPercent}%;" 
+        
+        // Kolom Timeline Bar
+        html += `<div class="timeline" style="width: ${totalChartWidth}px;">`;
+    
+        // Render Bar
+        html += `<div class="bar ${barClass}" data-task-id="${task.id}" 
+                style="left: ${leftPos}px; width: ${widthPos}px;" 
                 title="${tooltipText}">
             ${task.duration}h
         </div>`;
-        html += '</div></div>';
+        
+        html += '</div></div>'; // Tutup timeline & task-row
     });
-    html += '</div>';
+    
+    html += '</div>'; // Tutup chart-body
     
     chart.innerHTML = html;
+    
+    // Sinkronisasi Scroll Header dan Body
+    // Saat body discroll ke samping, header harus ikut geser
+    const chartBody = chart.querySelector('.chart-body');
+    const timelineColumn = chart.querySelector('.timeline-column');
+    
+    chartBody.addEventListener('scroll', function() {
+        timelineColumn.style.transform = `translateX(-${this.scrollLeft}px)`;
+    });
     
     setTimeout(() => drawDependencyLines(), 100);
 }
 
 function drawDependencyLines() {
-    // Remove existing SVG if any
     const existingSvg = document.querySelector('.dependency-svg');
-    if (existingSvg) {
-        existingSvg.remove();
-    }
+    if (existingSvg) existingSvg.remove();
     
     const chartBody = document.querySelector('.chart-body');
     if (!chartBody) return;
 
+    // Gunakan scrollWidth dan scrollHeight untuk mencakup area yang tersembunyi scroll
     const fullWidth = chartBody.scrollWidth; 
     const fullHeight = chartBody.scrollHeight;
     
+    // Container untuk koordinat referensi
+    // Kita perlu offset scroll karena getBoundingClientRect terpengaruh scroll viewport
     const chartRect = chartBody.getBoundingClientRect();
-    
-    // Create SVG overlay
+    const scrollLeft = chartBody.scrollLeft;
+    const scrollTop = chartBody.scrollTop;
+
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.classList.add('dependency-svg');
-    svg.style.position = 'absolute';
-    svg.style.top = '0';
-    svg.style.left = '0';
-    // Ubah width/height agar mencakup area yang di-scroll juga
-    svg.style.width = fullWidth + 'px'; 
-    svg.style.height = fullHeight + 'px';
-    svg.style.pointerEvents = 'none';
-    svg.style.zIndex = '5';
-    svg.classList.add('dependency-svg');
-    svg.style.position = 'absolute';
-    svg.style.top = '0';
-    svg.style.left = '0';
-    svg.style.width = '100%';
-    svg.style.height = '100%';
-    svg.style.pointerEvents = 'none';
-    svg.style.zIndex = '5';
-    chartBody.style.position = 'relative';
+    
+    // Style SVG agar menutupi seluruh area SCROLLABLE
+    Object.assign(svg.style, {
+        position: 'absolute',
+        top: '0',
+        left: '0',
+        width: `${fullWidth}px`,
+        height: `${fullHeight}px`,
+        pointerEvents: 'none',
+        zIndex: '5'
+    });
+    
     chartBody.appendChild(svg);
     
-    // Draw lines for each dependency
     currentTasks.forEach(task => {
         if (task.dependencies && task.dependencies.length > 0) {
             task.dependencies.forEach(depId => {
-                const fromTask = currentTasks.find(t => t.id === depId);
-                if (!fromTask) return;
-                
                 const fromBar = document.querySelector(`.bar[data-task-id="${depId}"]`);
                 const toBar = document.querySelector(`.bar[data-task-id="${task.id}"]`);
                 
                 if (!fromBar || !toBar) return;
                 
+                // Hitung posisi relatif terhadap chartBody (termasuk kompensasi scroll)
                 const fromRect = fromBar.getBoundingClientRect();
                 const toRect = toBar.getBoundingClientRect();
                 
-                const x1 = fromRect.right - chartRect.left;
-                const y1 = fromRect.top + fromRect.height / 2 - chartRect.top;
-                const x2 = toRect.left - chartRect.left;
-                const y2 = toRect.top + toRect.height / 2 - chartRect.top;
+                // Koordinat X: (Posisi di layar - Posisi Container di layar) + Jumlah Scroll Container
+                const x1 = (fromRect.right - chartRect.left) + scrollLeft;
+                const y1 = (fromRect.top + fromRect.height / 2 - chartRect.top) + scrollTop;
+                
+                const x2 = (toRect.left - chartRect.left) + scrollLeft;
+                const y2 = (toRect.top + toRect.height / 2 - chartRect.top) + scrollTop;
                 
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 
+                // Kurva Bezier
                 const dx = x2 - x1;
-                const dy = y2 - y1;
+                const controlPointOffset = Math.max(Math.abs(dx) * 0.5, 40);
                 
-                const horizontalDistance = Math.abs(dx);
-                const controlPointOffset = Math.max(horizontalDistance * 0.6, 50);
-                const cx1 = x1 + controlPointOffset;
-                const cy1 = y1;
-                const cx2 = x2 - controlPointOffset;
-                const cy2 = y2;
-                
-                const d = `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
+                const d = `M ${x1} ${y1} C ${x1 + controlPointOffset} ${y1}, ${x2 - controlPointOffset} ${y2}, ${x2} ${y2}`;
                 
                 path.setAttribute('d', d);
                 path.setAttribute('stroke', '#667eea');
-                path.setAttribute('stroke-width', '2.5');
+                path.setAttribute('stroke-width', '2');
                 path.setAttribute('fill', 'none');
-                path.setAttribute('opacity', '0.5');
-                path.setAttribute('stroke-linecap', 'round');
+                path.setAttribute('opacity', '0.6');
                 svg.appendChild(path);
             });
         }

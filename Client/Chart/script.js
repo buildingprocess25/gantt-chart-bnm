@@ -2,59 +2,7 @@ const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E
 
 const PYTHON_API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api/rab_data";
 
-const projects = [
-    {
-        ulok: 'Z001-2024-0001',
-        name: 'Reguler',
-        store: 'Toko XYZ',
-        work: 'ME',
-        contractor: 'PT. Bangun Jaya',
-        startDate: '2024-01-01' // Tambahkan Tanggal Mulai (Format: YYYY-MM-DD)
-    },
-    {
-        ulok: 'Z001-2024-0002',
-        name: 'Reguler',
-        store: 'Toko ABC',
-        work: 'ME',
-        contractor: 'CV. Karya Mandiri',
-        startDate: '2024-02-15'
-    },
-    {
-        ulok: 'Z001-2024-0003',
-        name: 'Reguler',
-        store: 'Toko EFG',
-        work: 'ME',
-        contractor: 'PT. Mitra Konstruksi',
-        startDate: '2024-03-01'
-    },
-    {
-        ulok: 'Z001-2024-0004',
-        name: 'Reguler',
-        store: 'Toko LMN',
-        work: 'Sipil',
-        contractor: 'CV. Berkah Abadi',
-        startDate: '2024-01-10'
-    },
-    {
-        ulok: 'Z001-2024-0005',
-        name: 'Renovasi',
-        store: 'Toko OPQ',
-        work: 'Sipil',
-        contractor: 'PT. Prima Karya',
-        startDate: '2024-04-01'
-    }
-];
-
-let currentProject = null;
-let projectTasks = {};
-
-// Template tahapan untuk pekerjaan ME (Mechanical & Electrical)
-const taskTemplateME = [
-    { id: 1, name: 'Instalasi', start: 1, duration: 10, dependencies: [] },
-    { id: 2, name: 'Fixture', start: 8, duration: 15, dependencies: [1] },
-    { id: 3, name: 'Pekerjaan Tambahan', start: 20, duration: 5, dependencies: [1] },
-    { id: 4, name: 'Pekerjaan SBO', start: 25, duration: 12, dependencies: [2, 3] },
-];
+let projects = [];
 
 // Template tahapan untuk pekerjaan Sipil (Civil Construction)
 const taskTemplateSipil = [
@@ -87,27 +35,76 @@ function formatDateID(date) {
     return date.toLocaleDateString('id-ID', options);
 }
 
-function initChart() {
-    // Initialize tasks for each project based on work type
-    projects.forEach(project => {
-        if (project.work === 'ME') {
-            projectTasks[project.ulok] = JSON.parse(JSON.stringify(taskTemplateME));
-        } else if (project.work === 'Sipil') {
-            projectTasks[project.ulok] = JSON.parse(JSON.stringify(taskTemplateSipil));
-        }
-    });
-    
-    // Populate Ulok dropdown
-    const ulokSelect = document.getElementById('ulokSelect');
-    projects.forEach(project => {
-        const option = document.createElement('option');
-        option.value = project.ulok;
-        option.textContent = `${project.ulok} - ${project.name} (${project.work})`;
-        ulokSelect.appendChild(option);
-    });
-    
-    // Show message to select project
-    showSelectProjectMessage();
+async function initChart() {
+    try {
+        // Ambil data dari URL API yang sudah Anda definisikan di atas file
+        const response = await fetch(PYTHON_API_BASE_URL);
+        const apiData = await response.json();
+
+        // Kosongkan array projects sebelum diisi
+        projects = [];
+
+        // Proses setiap data dari API
+        projects = apiData.map(item => {
+            // Contoh Label: "1JZ1... - Alfamart Reguler (Sipil) - TAMBAKAN BARU"
+            // Kita pisahkan teks berdasarkan tanda " - "
+            const parts = item.label.split(' - ');
+            
+            const ulokCode = item.value; // Value dari API
+            
+            // Ambil Nama Proyek & Jenis Pekerjaan (Index ke-1)
+            let rawName = parts[1] || "Proyek Tanpa Nama";
+            let workType = "Sipil"; // Default jika tidak terdeteksi
+            let cleanName = rawName;
+
+            // Deteksi text (ME) atau (Sipil) untuk menentukan jenis template
+            if (rawName.toLowerCase().includes("(me)")) {
+                workType = "ME";
+                cleanName = rawName.replace(/\(ME\)/i, "").trim(); // Hapus tulisan (ME) dari nama
+            } else if (rawName.toLowerCase().includes("(sipil)")) {
+                workType = "Sipil";
+                cleanName = rawName.replace(/\(Sipil\)/i, "").trim(); // Hapus tulisan (Sipil) dari nama
+            }
+
+            // Ambil Nama Toko (Index ke-2)
+            const storeName = parts[2] || "Toko Tidak Diketahui";
+
+            // Karena API tidak menyediakan Tanggal Mulai & Kontraktor, kita set default dulu
+            return {
+                ulok: ulokCode,
+                name: cleanName,
+                store: storeName,
+                work: workType,
+                contractor: "-", 
+                startDate: new Date().toISOString().split('T')[0] // Default hari ini
+            };
+        });
+        // Template Tugas berdasarkan jenis pekerjaan (ME/Sipil)
+        projects.forEach(project => {
+            if (project.work === 'ME') {
+                projectTasks[project.ulok] = JSON.parse(JSON.stringify(taskTemplateME));
+            } else {
+                projectTasks[project.ulok] = JSON.parse(JSON.stringify(taskTemplateSipil));
+            }
+        });
+        //Isi Dropdown HTML
+        const ulokSelect = document.getElementById('ulokSelect');
+        ulokSelect.innerHTML = '<option value="">--/--</option>'; // Reset dropdown
+
+        projects.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.ulok;
+            option.textContent = `${project.ulok} - ${project.store} (${project.work})`;
+            ulokSelect.appendChild(option);
+        });
+
+        // Tampilkan pesan default
+        showSelectProjectMessage();
+
+    } catch (error) {
+        console.error("Gagal mengambil data proyek:", error);
+        alert("Gagal memuat data dari server. Pastikan koneksi internet lancar.");
+    }
 }
 
 function showSelectProjectMessage() {

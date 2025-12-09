@@ -182,7 +182,7 @@ class GoogleServiceProvider:
 
                 # Ambil field lain dari Sheet SPK
                 # Note: Di Sheet SPK biasanya header "Lingkup Pekerjaan" pakai spasi, bukan underscore
-                nama_toko = str(record.get('nama_toko', record.get('nama_toko', ''))).strip()
+                nama_toko = str(record.get('Nama_Toko', record.get('nama_toko', ''))).strip()
                 lingkup = str(record.get('Lingkup Pekerjaan', record.get('Lingkup_Pekerjaan', ''))).strip()
                 proyek = str(record.get('Proyek', '')).strip()
 

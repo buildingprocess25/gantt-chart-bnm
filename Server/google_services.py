@@ -216,11 +216,44 @@ class GoogleServiceProvider:
     # Mengambil salah satu data rab berdasarkan nomor ulok
     def get_rab_data_by_ulok(self, kode_ulok):
         try:
-            records = self.data_entry_sheet.get_all_records()
-            for record in reversed(records):
-                if str(record.get(config.COLUMN_NAMES.LOKASI, '')).strip().upper() == kode_ulok.strip().upper():
-                    return record
+            # Menggunakan get_all_values() agar urutan kolom sesuai tampilan fisik spreadsheet
+            all_rows = self.data_entry_sheet.get_all_values()
+            
+            if not all_rows:
+                return None
+
+            # Baris pertama adalah header
+            headers = all_rows[0]
+            
+            # Data dimulai dari baris kedua
+            data_rows = all_rows[1:]
+
+            # Loop dari belakang (reversed) sesuai logika kode Anda sebelumnya
+            for row in reversed(data_rows):
+                # Kita perlu memetakan row list ke dictionary sementara untuk pengecekan
+                # Namun untuk performa, kita cari dulu indeks kolom "Nomor Ulok"
+                try:
+                    # Cari index kolom Nomor Ulok di header
+                    ulok_index = headers.index(config.COLUMN_NAMES.LOKASI)
+                    current_ulok = row[ulok_index] if len(row) > ulok_index else ""
+                except ValueError:
+                    # Jika kolom tidak ditemukan
+                    print("Kolom Nomor Ulok tidak ditemukan di header")
+                    return None
+
+                if str(current_ulok).strip().upper() == kode_ulok.strip().upper():
+                    # KETEMU! Sekarang pasangkan header dengan nilai baris ini
+                    # dict(zip(...)) pada Python 3.7+ akan mempertahankan urutan penyisipan (insertion order)
+                    
+                    # Pastikan panjang row sama dengan headers (padding jika kurang)
+                    if len(row) < len(headers):
+                        row += [''] * (len(headers) - len(row))
+                    
+                    result_dict = dict(zip(headers, row))
+                    return result_dict
+
             return None
+
         except Exception as e:
             print(f"Error saat mencari data RAB by ulok: {e}")
             return None

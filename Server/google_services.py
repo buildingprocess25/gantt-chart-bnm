@@ -182,7 +182,7 @@ class GoogleServiceProvider:
 
                 # Ambil field lain dari Sheet SPK
                 # Note: Di Sheet SPK biasanya header "Lingkup Pekerjaan" pakai spasi, bukan underscore
-                nama_toko = str(record.get('Nama Toko', record.get('nama_toko', ''))).strip()
+                nama_toko = str(record.get('nama_toko', record.get('nama_toko', ''))).strip()
                 lingkup = str(record.get('Lingkup Pekerjaan', record.get('Lingkup_Pekerjaan', ''))).strip()
                 proyek = str(record.get('Proyek', '')).strip()
 
@@ -196,11 +196,9 @@ class GoogleServiceProvider:
                     label = f"{ulok} - {proyek} ({lingkup}) - {nama_toko}"
 
                     ulok_list.append({
-                        "value": ulok,           # Nilai yang akan dikirim saat submit
                         "label": label,          # Teks yang tampil di dropdown
-                        "nama_toko": nama_toko,  
-                        "lingkup": lingkup,
-                        "proyek": proyek
+                        "value": ulok,           # Nilai yang akan dikirim saat submit
+                        
                     })
 
             # Sortir berdasarkan Nomor Ulok

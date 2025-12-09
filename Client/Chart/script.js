@@ -291,14 +291,14 @@ function renderChart() {
     
     chart.innerHTML = html;
     
-    // Sinkronisasi Scroll Header dan Body
-    // Saat body discroll ke samping, header harus ikut geser
-    const chartBody = chart.querySelector('.chart-body');
-    const timelineColumn = chart.querySelector('.timeline-column');
+    // // Sinkronisasi Scroll Header dan Body
+    // // Saat body discroll ke samping, header harus ikut geser
+    // const chartBody = chart.querySelector('.chart-body');
+    // const timelineColumn = chart.querySelector('.timeline-column');
     
-    chartBody.addEventListener('scroll', function() {
-        timelineColumn.style.transform = `translateX(-${this.scrollLeft}px)`;
-    });
+    // chartBody.addEventListener('scroll', function() {
+    //     timelineColumn.style.transform = `translateX(-${this.scrollLeft}px)`;
+    // });
     
     setTimeout(() => drawDependencyLines(), 100);
 }
@@ -307,6 +307,7 @@ function drawDependencyLines() {
     const existingSvg = document.querySelector('.dependency-svg');
     if (existingSvg) existingSvg.remove();
     
+    const scrollContainer = document.querySelector('.chart-wrapper');
     const chartBody = document.querySelector('.chart-body');
     if (!chartBody) return;
 
@@ -317,8 +318,8 @@ function drawDependencyLines() {
     // Container untuk koordinat referensi
     // Kita perlu offset scroll karena getBoundingClientRect terpengaruh scroll viewport
     const chartRect = chartBody.getBoundingClientRect();
-    const scrollLeft = chartBody.scrollLeft;
-    const scrollTop = chartBody.scrollTop;
+    const scrollLeft = scrollContainer.scrollLeft;
+    const scrollTop = scrollContainer.scrollTop;
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.classList.add('dependency-svg');

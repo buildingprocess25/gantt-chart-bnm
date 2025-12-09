@@ -112,9 +112,15 @@
         }
         
         .chart-wrapper {
-            padding: 30px;
-            overflow-x: auto;
-            overflow-y: visible;
+            height: 70vh; 
+            max-height: 600px; /* Atau batas pixel tertentu */
+            /* Aktifkan Scrollbar di sini (Vertikal & Horizontal) */
+            overflow: auto; 
+            /* Style tambahan agar rapi */
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            background: #fff;
+            position: relative; /* Penting untuk context sticky */
         }
         
         .chart-header, .task-row {
@@ -123,36 +129,37 @@
         }
 
         .gantt-chart {
-        display: inline-block; /* Agar div bisa melebar mengikuti konten */
-        min-width: 100%; /* Minimal selebar layar */
+            display: table; /* Trik agar lebar konten mengikuti isinya */
+            min-width: 100%;
         }
         
         .chart-header {
             display: flex;
             border-bottom: 1px solid #e9ecef;
-            background: #fff; /* Wajib background solid */
-            /* KUNCI STICKY TOP */
+            background: #f8f9fa;
+            /* Menempel di ATAS container .chart-wrapper */
             position: sticky; 
-            top: 0;           /* Menempel di atas layar */
-            z-index: 999;     /* Layer paling atas, menutupi task list */
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+            top: 0; 
+            z-index: 30;
         }
         
         .task-column {
-            min-width: 250px; 
+            min-width: 250px;
             width: 250px;
-            padding: 15px;
-            font-weight: 600;
-            background: #f8f9fa; /* Warna beda sedikit dari body */
+            padding: 10px 15px;
+            font-weight: bold;
+            background: #f8f9fa; /* Warna sama dengan header */
             border-right: 1px solid #dee2e6;
-            /* Pastikan z-index lebih tinggi dari header tanggal yang bergerak */
-            position: relative;
-            z-index: 1000;
+            border-bottom: 1px solid #dee2e6;
+            /* Menempel di KIRI dan ATAS */
+            position: sticky;
+            left: 0;
+            top: 0;
+            z-index: 40;
         }
         
         .timeline-column {
             display: flex;
-            overflow: visible;
         }
 
         .day-header {
@@ -189,22 +196,15 @@
         }
         
         .chart-body {
-            border: 2px solid #e9ecef;
-            border-radius: 0 0 6px 6px;
             overflow: visible;
-            position: relative;
-            overflow-x: auto;
-            overflow-y: visible;
         }
         
         .task-row {
             display: flex;
             border-bottom: 1px solid #e9ecef;
-            min-height: 60px;
-            align-items: stretch;
-            position: relative;
-            overflow: visible; 
+            min-height: 50px; /* Tinggi baris */
             background: #fff;
+            align-items: stretch;
         }
         
         .task-row:hover {
@@ -212,20 +212,20 @@
         }
         
         .task-name {
-            min-width: 250px; 
+            min-width: 250px;
             width: 250px;
             padding: 0 15px;
+            font-size: 14px;
             font-weight: 500;
             color: #495057;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            gap: 5px;
             border-right: 1px solid #e9ecef;
-            /* KUNCI STICKY LEFT */
-            position: sticky; 
-            left: 0;          /* Menempel di kiri container chart-body */
-            z-index: 500;     /* Di atas timeline bar, tapi di bawah Header */
+            /* Menempel di KIRI container */
+            position: sticky;
+            left: 0;
+            z-index: 20; /* Di atas bar, tapi di bawah header */
             background: #fff;
         }
         

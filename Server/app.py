@@ -1220,6 +1220,23 @@ def get_all_rab_data_list():
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
+# Menangkap parameter ulok dan ambil satu data rab 
+@app.route('/api/get_rab_data', methods=['GET'])
+def get_rab_data():
+    ulok = request.args.get('ulok')
+    if not ulok:
+        return jsonify({"error": "Parameter ulok kosong"}), 400
+    try:
+        rab_data = google_provider.get_rab_data_by_ulok(ulok)
+        if rab_data:
+            return jsonify(rab_data), 200
+        else:
+            return jsonify({"error": "Data RAB tidak ditemukan"}), 404
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/get_spk_status', methods=['GET'])
 def get_spk_status():
     ulok = request.args.get('ulok')

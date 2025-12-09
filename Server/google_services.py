@@ -213,6 +213,18 @@ class GoogleServiceProvider:
             print(f"Error saat mengambil daftar Nomor Ulok SPK dari Form2: {e}")
             raise
 
+    # Mengambil salah satu data rab berdasarkan nomor ulok
+    def get_rab_data_by_ulok(self, kode_ulok):
+        try:
+            records = self.data_entry_sheet.get_all_records()
+            for record in reversed(records):
+                if str(record.get(config.COLUMN_NAMES.LOKASI, '')).strip().upper() == kode_ulok.strip().upper():
+                    return record
+            return None
+        except Exception as e:
+            print(f"Error saat mencari data RAB by ulok: {e}")
+            return None
+
     def get_user_info_by_cabang(self, cabang):
         pic_list, koordinator_info, manager_info = [], {}, {}
         try:

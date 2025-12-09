@@ -129,22 +129,30 @@
         
         .chart-header {
             display: flex;
-            margin-bottom: 0; /* Hapus margin bawah agar menyatu */
             border-bottom: 1px solid #e9ecef;
+            background: #fff; /* Wajib background solid */
+            /* KUNCI STICKY TOP */
+            position: sticky; 
+            top: 0;           /* Menempel di atas layar */
+            z-index: 999;     /* Layer paling atas, menutupi task list */
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
         
         .task-column {
+            min-width: 250px; 
             width: 250px;
+            padding: 15px;
             font-weight: 600;
-            padding: 10px;
-            background: rgba(255, 0, 0, 1);
-            color: white;
-            border-radius: 6px 0 0 0;
+            background: #f8f9fa; /* Warna beda sedikit dari body */
+            border-right: 1px solid #dee2e6;
+            /* Pastikan z-index lebih tinggi dari header tanggal yang bergerak */
+            position: relative;
+            z-index: 1000;
         }
         
         .timeline-column {
             display: flex;
-            overflow: visible; /* Penting agar header ikut scroll */
+            overflow: visible;
         }
 
         .day-header {
@@ -186,17 +194,17 @@
             overflow: visible;
             position: relative;
             overflow-x: auto;
-            overflow-y: hidden;
+            overflow-y: visible;
         }
         
         .task-row {
             display: flex;
             border-bottom: 1px solid #e9ecef;
             min-height: 60px;
-            align-items: stretch; /* UBAH DARI center KE stretch */
-            transition: background 0.3s;
+            align-items: stretch;
             position: relative;
-            overflow: visible;
+            overflow: visible; 
+            background: #fff;
         }
         
         .task-row:hover {
@@ -204,18 +212,21 @@
         }
         
         .task-name {
+            min-width: 250px; 
             width: 250px;
-            padding: 0 15px; /* Sesuaikan padding */
+            padding: 0 15px;
             font-weight: 500;
             color: #495057;
             display: flex;
             flex-direction: column;
-            justify-content: center; /* Tambahkan ini agar teks vertikal di tengah */
+            justify-content: center;
             gap: 5px;
-            background: #fff; /* Pastikan background putih agar menutupi garis scroll jika ada */
-            z-index: 2; /* Agar nama task tetap di atas saat scroll */
-            position: sticky; /* Opsi tambahan: agar nama task diam saat scroll horizontal */
-            left: 0;
+            border-right: 1px solid #e9ecef;
+            /* KUNCI STICKY LEFT */
+            position: sticky; 
+            left: 0;          /* Menempel di kiri container chart-body */
+            z-index: 500;     /* Di atas timeline bar, tapi di bawah Header */
+            background: #fff;
         }
         
         .task-duration {
@@ -226,10 +237,8 @@
         .timeline {
             position: relative;
             display: block;
-            height: auto; /* Biarkan auto mengikuti stretch parent */
-            flex-grow: 1; /* Pastikan dia mengisi sisa ruang */
-            overflow: hidden; 
-            box-sizing: border-box;
+            flex-grow: 1;
+            overflow: hidden;
         }
 
         .grid-line {
@@ -422,12 +431,17 @@
             }
             
             .container {
-                box-shadow: none;
-                max-width: 100%;
+                max-width: 1400px;
+            margin: 2.5rem auto;
+            padding: 1rem;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            overflow: visible !important;
             }
             
             .chart-wrapper {
-                page-break-inside: avoid;
+                overflow: visible !important;
             }
             
             .bar:hover {

@@ -44,6 +44,7 @@ google_provider = GoogleServiceProvider()
 
 from data_api import data_bp
 app.register_blueprint(data_bp)
+app.json.sort_keys = False
 
 def format_ulok(nomor_ulok_raw: str) -> str:
     """Format Nomor Ulok to pattern XXXX-XXXX-XXXX[-R].

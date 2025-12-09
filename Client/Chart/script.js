@@ -197,7 +197,7 @@ function renderProjectInfo() {
         </div>
         <div class="project-detail">
             <div class="project-label">Lingkup Pekerjaan</div>
-            <div class="project-value" style="background: white; color: #d32f2f; padding: 2px 8px; border-radius: 4px;">${currentProject.work}</div>
+            <div class="project-value" style="color: white;">${currentProject.work}</div>
         </div>
         <div class="project-detail">
             <div class="project-label">Kontraktor</div>

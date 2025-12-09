@@ -6,7 +6,7 @@ const projects = [
     {
         ulok: 'Z001-2024-0001',
         name: 'Reguler',
-        location: 'Jakarta Selatan',
+        store: 'Toko XYZ',
         work: 'ME',
         contractor: 'PT. Bangun Jaya',
         startDate: '2024-01-01' // Tambahkan Tanggal Mulai (Format: YYYY-MM-DD)
@@ -14,7 +14,7 @@ const projects = [
     {
         ulok: 'Z001-2024-0002',
         name: 'Reguler',
-        location: 'Bandung Utara',
+        store: 'Toko ABC',
         work: 'ME',
         contractor: 'CV. Karya Mandiri',
         startDate: '2024-02-15'
@@ -22,7 +22,7 @@ const projects = [
     {
         ulok: 'Z001-2024-0003',
         name: 'Reguler',
-        location: 'Surabaya Barat',
+        store: 'Toko EFG',
         work: 'ME',
         contractor: 'PT. Mitra Konstruksi',
         startDate: '2024-03-01'
@@ -30,7 +30,7 @@ const projects = [
     {
         ulok: 'Z001-2024-0004',
         name: 'Reguler',
-        location: 'Semarang Tengah',
+        store: 'Toko LMN',
         work: 'Sipil',
         contractor: 'CV. Berkah Abadi',
         startDate: '2024-01-10'
@@ -38,7 +38,7 @@ const projects = [
     {
         ulok: 'Z001-2024-0005',
         name: 'Renovasi',
-        location: 'Yogyakarta Selatan',
+        store: 'Toko OPQ',
         work: 'Sipil',
         contractor: 'PT. Prima Karya',
         startDate: '2024-04-01'
@@ -165,8 +165,8 @@ function renderProjectInfo() {
             <div class="project-value">${currentProject.name}</div>
         </div>
         <div class="project-detail">
-            <div class="project-label">Alamat</div>
-            <div class="project-value">${currentProject.location}</div>
+            <div class="project-label">Nama Toko</div>
+            <div class="project-value">${currentProject.store}</div>
         </div>
         <div class="project-detail">
             <div class="project-label">Lingkup Pekerjaan</div>
@@ -496,8 +496,8 @@ async function exportToPDF() {
                     <td style="padding: 5px;">: ${currentProject.name}</td>
                 </tr>
                 <tr>
-                    <td style="font-weight: bold; padding: 5px;">Lokasi</td>
-                    <td style="padding: 5px;">: ${currentProject.location}</td>
+                    <td style="font-weight: bold; padding: 5px;">Nama Toko</td>
+                    <td style="padding: 5px;">: ${currentProject.store}</td>
                 </tr>
                 <tr>
                     <td style="font-weight: bold; padding: 5px;">Pekerjaan</td>
@@ -578,7 +578,7 @@ function exportToExcel() {
         ["Laporan Jadwal Proyek"],
         ["No. Ulok", currentProject.ulok],
         ["Nama Proyek", currentProject.name],
-        ["Lokasi", currentProject.location],
+        ["Lokasi", currentProject.store],
         ["Kontraktor", currentProject.contractor],
         ["Tanggal Mulai Proyek", formatDateID(new Date(currentProject.startDate || new Date()))],
         [], // Baris kosong

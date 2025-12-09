@@ -129,17 +129,25 @@
         
         .chart-header {
             display: flex;
-            margin-bottom: 0; /* Hapus margin bawah agar menyatu */
             border-bottom: 1px solid #e9ecef;
+            background: #fff; /* Wajib ada background agar tidak transparan */
+            /* Kunci Utama Sticky Header */
+            position: sticky;
+            top: 0;
+            z-index: 100; /* Z-index paling tinggi agar menutupi row di bawahnya */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); /* Bayangan halus */
         }
         
         .task-column {
-            width: 250px;
+            width: 250px; /* Lebar harus sama dengan .task-name */
+            padding: 15px;
             font-weight: 600;
-            padding: 10px;
-            background: rgba(255, 0, 0, 1);
-            color: white;
-            border-radius: 6px 0 0 0;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            flex-shrink: 0;
+            /* Agar tidak tertutup timeline saat digeser */
+            position: relative; 
+            z-index: 101;
         }
         
         .timeline-column {
@@ -193,9 +201,8 @@
             display: flex;
             border-bottom: 1px solid #e9ecef;
             min-height: 60px;
-            align-items: stretch; /* UBAH DARI center KE stretch */
-            transition: background 0.3s;
-            position: relative;
+            align-items: stretch;
+            position: relative
             overflow: visible;
         }
         
@@ -204,18 +211,21 @@
         }
         
         .task-name {
-            width: 250px;
-            padding: 0 15px; /* Sesuaikan padding */
+            width: 250px; /* Lebar fixed */
+            padding: 0 15px;
             font-weight: 500;
             color: #495057;
             display: flex;
             flex-direction: column;
-            justify-content: center; /* Tambahkan ini agar teks vertikal di tengah */
+            justify-content: center;
             gap: 5px;
-            background: #fff; /* Pastikan background putih agar menutupi garis scroll jika ada */
-            z-index: 2; /* Agar nama task tetap di atas saat scroll */
-            position: sticky; /* Opsi tambahan: agar nama task diam saat scroll horizontal */
+            /* Kunci Utama Sticky Left */
+            position: sticky;
             left: 0;
+            z-index: 50; /* Z-index di atas bar timeline, tapi di bawah header */
+            background: #fff; /* Wajib background agar menutupi bar yang lewat di belakangnya */
+            border-right: 1px solid #e9ecef; /* Garis pemisah vertikal */
+            box-shadow: 2px 0 5px rgba(0,0,0,0.02); /* Bayangan halus di kanan */
         }
         
         .task-duration {

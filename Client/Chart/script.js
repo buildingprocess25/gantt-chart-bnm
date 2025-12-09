@@ -39,6 +39,11 @@ let currentTasks = [];
 const totalDaysME = 100;
 const totalDaysSipil = 205;
 
+document.getElementById('logout-button-form').addEventListener('click', () => {
+    sessionStorage.clear();
+      window.location.href = 'https://gantt-chart-bnm.vercel.app'; // Arahkan ke homepage
+});
+
 // --- FUNGSI FORMAT TANGGAL ---
 function formatDateID(date) {
     const options = { day: 'numeric', month: 'short', year: '2-digit' };

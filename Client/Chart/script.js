@@ -1,6 +1,6 @@
 const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
 
-const PYTHON_API_LOGIN_URL = "https://gantt-chart-bnm.onrender.com";
+const PYTHON_API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api/rab_data";
 
 const projects = [
     {
@@ -291,84 +291,75 @@ function renderChart() {
     
     chart.innerHTML = html;
     
-    // Sinkronisasi Scroll Header dan Body
-    // Saat body discroll ke samping, header harus ikut geser
-    const chartBody = chart.querySelector('.chart-body');
-    const timelineColumn = chart.querySelector('.timeline-column');
-    
-    chartBody.addEventListener('scroll', function() {
-        timelineColumn.style.transform = `translateX(-${this.scrollLeft}px)`;
-    });
-    
-    setTimeout(() => drawDependencyLines(), 100);
+    setTimeout(() => {
+        drawDependencyLines();
+    }, 50);
 }
 
 function drawDependencyLines() {
     const existingSvg = document.querySelector('.dependency-svg');
     if (existingSvg) existingSvg.remove();
-    
+
     const chartBody = document.querySelector('.chart-body');
     if (!chartBody) return;
 
-    // Gunakan scrollWidth dan scrollHeight untuk mencakup area yang tersembunyi scroll
-    const fullWidth = chartBody.scrollWidth; 
-    const fullHeight = chartBody.scrollHeight;
-    
-    // Container untuk koordinat referensi
-    // Kita perlu offset scroll karena getBoundingClientRect terpengaruh scroll viewport
-    const chartRect = chartBody.getBoundingClientRect();
-    const scrollLeft = chartBody.scrollLeft;
-    const scrollTop = chartBody.scrollTop;
-
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.classList.add('dependency-svg');
-    
-    // Style SVG agar menutupi seluruh area SCROLLABLE
-    Object.assign(svg.style, {
-        position: 'absolute',
-        top: '0',
-        left: '0',
-        width: `${fullWidth}px`,
-        height: `${fullHeight}px`,
-        pointerEvents: 'none',
-        zIndex: '5'
-    });
+
+    svg.style.width = `${chartBody.scrollWidth}px`;
+    svg.style.height = `${chartBody.scrollHeight}px`;
     
     chartBody.appendChild(svg);
-    
+
+    // Ambil koordinat container pembungkus untuk offset
+    // Kita gunakan getBoundingClientRect() untuk akurasi posisi visual
+    const bodyRect = chartBody.getBoundingClientRect();
+
     currentTasks.forEach(task => {
         if (task.dependencies && task.dependencies.length > 0) {
             task.dependencies.forEach(depId => {
+                // Cari elemen Bar Asal (From) dan Tujuan (To)
                 const fromBar = document.querySelector(`.bar[data-task-id="${depId}"]`);
                 const toBar = document.querySelector(`.bar[data-task-id="${task.id}"]`);
-                
-                if (!fromBar || !toBar) return;
-                
-                // Hitung posisi relatif terhadap chartBody (termasuk kompensasi scroll)
-                const fromRect = fromBar.getBoundingClientRect();
-                const toRect = toBar.getBoundingClientRect();
-                
-                // Koordinat X: (Posisi di layar - Posisi Container di layar) + Jumlah Scroll Container
-                const x1 = (fromRect.right - chartRect.left) + scrollLeft;
-                const y1 = (fromRect.top + fromRect.height / 2 - chartRect.top) + scrollTop;
-                
-                const x2 = (toRect.left - chartRect.left) + scrollLeft;
-                const y2 = (toRect.top + toRect.height / 2 - chartRect.top) + scrollTop;
-                
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                
-                // Kurva Bezier
-                const dx = x2 - x1;
-                const controlPointOffset = Math.max(Math.abs(dx) * 0.5, 40);
-                
-                const d = `M ${x1} ${y1} C ${x1 + controlPointOffset} ${y1}, ${x2 - controlPointOffset} ${y2}, ${x2} ${y2}`;
-                
-                path.setAttribute('d', d);
-                path.setAttribute('stroke', '#667eea');
-                path.setAttribute('stroke-width', '2');
-                path.setAttribute('fill', 'none');
-                path.setAttribute('opacity', '0.6');
-                svg.appendChild(path);
+
+                if (fromBar && toBar) {
+                    const fromRect = fromBar.getBoundingClientRect();
+                    const toRect = toBar.getBoundingClientRect();
+                    // X1: Titik KANAN bar asal
+                    // (Posisi Absolut Layar - Posisi Container) + Jumlah Scroll yang sudah digulung
+                    const x1 = (fromRect.right - bodyRect.left) + chartBody.scrollLeft;
+                    const y1 = (fromRect.top + fromRect.height / 2 - bodyRect.top) + chartBody.scrollTop;
+                    // X2: Titik KIRI bar tujuan
+                    const x2 = (toRect.left - bodyRect.left) + chartBody.scrollLeft;
+                    const y2 = (toRect.top + toRect.height / 2 - bodyRect.top) + chartBody.scrollTop;
+                    // Jarak horizontal
+                    const deltaX = x2 - x1;
+                    // Logic Control Point (Kelengkungan)
+                    // Jika target ada di sebelah kanan jauh, lengkungan lebar.
+                    // Jika target dekat atau malah di kiri (overlap), lengkungan tetap ada minimalnya.
+                    const curveAmount = Math.max(Math.abs(deltaX / 2), 40);
+                    // Path SVG:
+                    // M: Move to (Start)
+                    // C: Cubic Bezier (ControlPoint1, ControlPoint2, End)
+                    // CP1: Geser ke Kanan dari Start
+                    // CP2: Geser ke Kiri dari End
+                    const d = `
+                        M ${x1} ${y1} 
+                        C ${x1 + curveAmount} ${y1}, 
+                        ${x2 - curveAmount} ${y2}, 
+                        ${x2} ${y2}
+                    `;
+
+                    // --- RENDER GARIS ---
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', d);
+                    path.classList.add('dependency-line'); 
+                    
+                    path.setAttribute('stroke', '#adb5bd'); // Warna default abu-abu soft
+                    path.setAttribute('stroke-width', '2');
+                    path.setAttribute('fill', 'none');
+                    svg.appendChild(path);
+                }
             });
         }
     });
@@ -449,7 +440,6 @@ function updateStats() {
     });
     
     const maxEnd = Math.max(...currentTasks.map(t => t.start + t.duration));
-    const originalEnd = Math.max(...originalTemplate.map(t => t.start + t.duration));
     
     const stats = document.getElementById('stats');
     stats.innerHTML = `

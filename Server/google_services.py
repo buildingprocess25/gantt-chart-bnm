@@ -197,7 +197,7 @@ class GoogleServiceProvider:
 
                     ulok_list.append({
                         "label": label,          # Teks yang tampil di dropdown
-                        "value": ulok,           # Nilai yang akan dikirim saat submit
+                        "value": ulok + "-" + lingkup,           # Nilai yang akan dikirim saat submit
                         
                     })
 
@@ -211,9 +211,10 @@ class GoogleServiceProvider:
             return [] # Kembalikan list kosong agar tidak error 500
 
     # Mengambil salah satu data rab berdasarkan nomor ulok
-    def get_gantt_data_by_ulok(self, kode_ulok):
+    def get_gantt_data_by_ulok(self, kode_ulok, lingkup_pekerjaan):
         try:
             target_ulok = str(kode_ulok).strip().upper()
+            target_lingkup = str(lingkup_pekerjaan).strip()
             
             # --- 1. AMBIL DATA SPK ---
             spk_sheet = self.sheet.worksheet(config.SPK_DATA_SHEET_NAME)
@@ -222,77 +223,82 @@ class GoogleServiceProvider:
             
             # Cari dari bawah (data terbaru)
             for row in reversed(spk_rows):
-                # Sesuaikan nama kolom di sheet SPK Anda (misal: "Nomor Ulok")
-                if str(row.get("Nomor Ulok", "")).strip().upper() == target_ulok:
+                # Filter berdasarkan Nomor Ulok DAN Lingkup Pekerjaan (di sheet SPK biasanya pakai spasi)
+                row_ulok = str(row.get("Nomor Ulok", "")).strip().upper()
+                row_lingkup = str(row.get("Lingkup Pekerjaan", "")).strip() # Case insensitive comparison might be safer
+                
+                if row_ulok == target_ulok and row_lingkup.lower() == target_lingkup.lower():
                     spk_data = row
                     break
             
             # --- 2. AMBIL DATA RAB FORM 3 (APPROVED) ---
-            # Menggunakan get_all_values agar urutan aman, lalu dipapping manual
             rab_sheet = self.sheet.worksheet(config.APPROVED_DATA_SHEET_NAME) # Form3
             all_rab_values = rab_sheet.get_all_values()
-            rab_data = None
+            filtered_categories = []
             
             if all_rab_values:
                 headers = all_rab_values[0]
                 data_rows = all_rab_values[1:]
                 
-                # Cari index kolom Nomor Ulok
+                # Cari index kolom penting
                 try:
                     ulok_idx = headers.index(config.COLUMN_NAMES.LOKASI)
+                    lingkup_idx = headers.index(config.COLUMN_NAMES.LINGKUP_PEKERJAAN) # Biasanya "Lingkup_Pekerjaan"
                 except ValueError:
-                    print("Kolom Nomor Ulok tidak ditemukan di RAB Form 3")
+                    print("Kolom Nomor Ulok atau Lingkup Pekerjaan tidak ditemukan di RAB Form 3")
                     ulok_idx = -1
+                    lingkup_idx = -1
 
-                if ulok_idx != -1:
+                if ulok_idx != -1 and lingkup_idx != -1:
+                    matched_row_dict = None
+                    
                     for row_vals in reversed(data_rows):
-                        current_ulok = row_vals[ulok_idx] if len(row_vals) > ulok_idx else ""
-                        if str(current_ulok).strip().upper() == target_ulok:
-                            # Mapping ke dictionary
+                        # Safety check length
+                        if len(row_vals) <= max(ulok_idx, lingkup_idx):
+                            continue
+
+                        current_ulok = str(row_vals[ulok_idx]).strip().upper()
+                        current_lingkup = str(row_vals[lingkup_idx]).strip()
+                        
+                        # Filter berdasarkan Nomor Ulok DAN Lingkup
+                        if current_ulok == target_ulok and current_lingkup.lower() == target_lingkup.lower():
+                            # Mapping ke dictionary untuk memudahkan pengecekan kategori
                             if len(row_vals) < len(headers):
                                 row_vals += [''] * (len(headers) - len(row_vals))
-                            rab_data = dict(zip(headers, row_vals))
+                            matched_row_dict = dict(zip(headers, row_vals))
                             break
+                    
+                    # --- 3. PROSES KATEGORI PEKERJAAN (Hanya jika data ditemukan) ---
+                    if matched_row_dict:
+                        # Tentukan master list berdasarkan input parameter lingkup
+                        if "SIPIL" in target_lingkup.upper():
+                            master_list = config.KATEGORI_SIPIL
+                        else:
+                            master_list = config.KATEGORI_ME
+                        
+                        found_cats_set = set()
 
-            # --- 3. PROSES KATEGORI PEKERJAAN ---
-            existing_categories = []
-            
-            if rab_data:
-                lingkup = str(rab_data.get(config.COLUMN_NAMES.LINGKUP_PEKERJAAN, "")).strip().upper()
-                
-                # Tentukan master list berdasarkan lingkup
-                # Asumsi: jika mengandung kata "SIPIL" pakai list Sipil, selain itu ME
-                if "SIPIL" in lingkup:
-                    master_list = config.KATEGORI_SIPIL
-                else:
-                    master_list = config.KATEGORI_ME
-                
-                found_cats_set = set()
-
-                # Cek semua kolom yang berawalan "Kategori_Pekerjaan_"
-                for key, val in rab_data.items():
-                    if key.startswith("Kategori_Pekerjaan_"):
-                        val_clean = str(val).strip().upper()
-                        # Cek apakah nilai ada di master list
-                        if val_clean in master_list:
-                            found_cats_set.add(val_clean)
-                
-                # Masukkan ke array baru urut berdasarkan urutan Master List (agar rapi)
-                for cat in master_list:
-                    if cat in found_cats_set:
-                        existing_categories.append(cat)
-                
-                # Masukkan hasil filter ke object rab_data agar bisa dikirim ke frontend
-                rab_data['filtered_categories'] = existing_categories
+                        # Cek semua kolom yang berawalan "Kategori_Pekerjaan_" di baris yang ditemukan
+                        for key, val in matched_row_dict.items():
+                            if key.startswith("Kategori_Pekerjaan_"):
+                                val_clean = str(val).strip().upper()
+                                # Cek apakah nilai ada di master list
+                                if val_clean in master_list:
+                                    found_cats_set.add(val_clean)
+                        
+                        # Masukkan ke array hasil urut berdasarkan urutan Master List
+                        for cat in master_list:
+                            if cat in found_cats_set:
+                                filtered_categories.append(cat)
 
             return {
                 "spk": spk_data,
-                "rab": rab_data
+                "rab": filtered_categories  # Hanya mengembalikan list kategori
             }
 
         except Exception as e:
             print(f"Error getting Gantt data: {e}")
-            return {"spk": None, "rab": None}
+            return {"spk": None, "rab": []}
 
     def get_user_info_by_cabang(self, cabang):
         pic_list, koordinator_info, manager_info = [], {}, {}

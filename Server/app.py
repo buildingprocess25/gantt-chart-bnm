@@ -1225,19 +1225,23 @@ def get_all_spk_data_list():
 @app.route('/api/get_gantt_data', methods=['GET'])
 def get_gantt_data():
     ulok = request.args.get('ulok')
-    if not ulok:
-        return jsonify({"status": "error", "message": "Parameter ulok diperlukan"}), 400
+    lingkup = request.args.get('lingkup') # Ambil parameter lingkup
+    
+    if not ulok or not lingkup:
+        return jsonify({"status": "error", "message": "Parameter ulok dan lingkup diperlukan"}), 400
         
     try:
-        result = google_provider.get_gantt_data_by_ulok(ulok)
+        # Panggil fungsi service dengan dua parameter
+        result = google_provider.get_gantt_data_by_ulok(ulok, lingkup)
         
+        # Validasi jika data tidak ditemukan
         if not result['spk'] and not result['rab']:
-            return jsonify({"status": "error", "message": "Data tidak ditemukan"}), 404
+            return jsonify({"status": "error", "message": "Data tidak ditemukan untuk kombinasi Ulok dan Lingkup tersebut"}), 404
             
         return jsonify({
             "status": "success",
             "spk": result['spk'],
-            "rab": result['rab']
+            "rab": result['rab'] # Ini sekarang hanya berisi list kategori (array of strings)
         }), 200
         
     except Exception as e:

@@ -196,14 +196,12 @@ class GoogleServiceProvider:
                     
                     # Format Label sesuai request: "Z001... - Reguler (ME)"
                     # Kita gabungkan data agar informatif di dropdown
-                    label = f"{ulok} - {proyek} ({lingkup})"
+                    label = f"{ulok} - {proyek} ({lingkup}) - {nama_toko}"
 
                     ulok_list.append({
                         "value": ulok,           # Nilai yang akan dikirim saat submit
                         "label": label,          # Teks yang tampil di dropdown
-                        "nama_toko": nama_toko,  # Info tambahan untuk auto-fill frontend
-                        "lingkup": lingkup,
-                        "proyek": proyek
+                        
                     })
 
             # Opsional: Sortir berdasarkan Nomor Ulok

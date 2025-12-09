@@ -39,6 +39,11 @@ let currentTasks = [];
 const totalDaysME = 100;
 const totalDaysSipil = 205;
 
+document.getElementById('logout-button-form').addEventListener('click', () => {
+    sessionStorage.clear();
+      window.location.href = 'https://gantt-chart-bnm.vercel.app'; // Arahkan ke homepage
+});
+
 // --- FUNGSI FORMAT TANGGAL ---
 function formatDateID(date) {
     const options = { day: 'numeric', month: 'short', year: '2-digit' };
@@ -456,55 +461,7 @@ function updateStats() {
     `;
 }
 
-// --- FUNGSI EXPORT PDF & EXCEL (DISEDERHANAKAN AGAR MUAT) ---
-async function exportToPDF() {
-    if (!currentProject) { alert("Pilih proyek!"); return; }
-
-    const printArea = document.createElement('div');
-    printArea.id = "pdf-export-area";
-    Object.assign(printArea.style, {
-        position: 'absolute', top: '0', left: '0', width: '1200px',
-        padding: '40px', backgroundColor: '#ffffff', zIndex: '9999', fontFamily: 'Arial'
-    });
-
-    const startDate = currentProject.startDate ? formatDateID(new Date(currentProject.startDate)) : '-';
-    printArea.innerHTML = `
-        <div style="margin-bottom: 30px;">
-            <h2 style="text-align: center;">JADWAL PELAKSANAAN PROYEK</h2>
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr><td style="width: 150px;"><b>No. Ulok</b></td><td>: ${currentProject.ulok}</td></tr>
-                <tr><td><b>Toko</b></td><td>: ${currentProject.store}</td></tr>
-                <tr><td><b>Pekerjaan</b></td><td>: ${currentProject.work}</td></tr>
-                <tr><td><b>Tgl Mulai</b></td><td>: ${startDate}</td></tr>
-            </table>
-            <hr>
-        </div>
-    `;
-
-    const chartClone = document.getElementById('ganttChart').cloneNode(true);
-    chartClone.style.overflow = 'visible';
-    printArea.appendChild(chartClone);
-    document.body.appendChild(printArea);
-
-    try {
-        const canvas = await html2canvas(printArea, { scale: 2, useCORS: true });
-        const imgData = canvas.toDataURL('image/png');
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('l', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const imgProps = pdf.getImageProperties(imgData);
-        const finalHeight = imgProps.height * (pdfWidth / imgProps.width);
-        
-        pdf.addImage(imgData, 'PNG', 0, 10, pdfWidth, finalHeight);
-        pdf.save(`Schedule_${currentProject.ulok}.pdf`);
-    } catch (err) {
-        console.error(err);
-        alert("Gagal PDF");
-    } finally {
-        document.body.removeChild(printArea);
-    }
-}
-
+// --- EXPORT EXCEL ---
 function exportToExcel() {
     if (!currentProject) return;
     const startDate = currentProject.startDate ? new Date(currentProject.startDate) : new Date();

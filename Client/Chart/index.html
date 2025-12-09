@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gantt Chart</title>
     <link rel="stylesheet" href="style.css" />
+    <link rel="icon" href="/Assets/favicon.ico" type="image/x-icon">
     <script>
       // Security Check
         const isAuthenticated = sessionStorage.getItem('authenticated');
@@ -51,9 +52,6 @@
         </div>
         <div class="project-info" id="projectInfo"></div>
         <div class="export-buttons" id="exportButtons" style="display: none;">
-            <button class="btn-export btn-pdf" onclick="exportToPDF()">
-                📄 Export to PDF
-            </button>
             <button class="btn-export btn-excel" onclick="exportToExcel()">
                 📊 Export to Excel
             </button>
@@ -75,7 +73,6 @@
     </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="script.js"></script>
 </body>

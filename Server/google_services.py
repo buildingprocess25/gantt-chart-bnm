@@ -159,59 +159,58 @@ class GoogleServiceProvider:
             print(f"Error saat mengambil data SPK by cabang: {e}")
             return []
 
-    def get_all_rab_data(self):
+    def get_all_spk_ulok(self):
         """
         Mengambil daftar unik Nomor Ulok beserta Proyek, Nama Toko, dan Lingkup Pekerjaan 
-        dari sheet Form2 (RAB) pada SPREADSHEET_ID utama untuk dropdown SPK.
+        dari sheet SPK_Data untuk dropdown (bukan dari RAB/Form2).
         """
         try:
-            # Gunakan data_entry_sheet yang mengarah ke config.DATA_ENTRY_SHEET_NAME (Form2)
-            # pada config.SPREADSHEET_ID (bukan RAB 2)
-            records = self.data_entry_sheet.get_all_records()
+            # UBAH DISINI: Gunakan worksheet yang mengarah ke SPK_DATA_SHEET_NAME
+            worksheet = self.sheet.worksheet(config.SPK_DATA_SHEET_NAME)
+            records = worksheet.get_all_records()
 
             ulok_list = []
             seen = set()
 
-            # Iterasi record (gunakan reversed jika ingin data terbaru di atas, 
-            # tapi untuk dropdown biasanya list lengkap)
             for record in records:
-                ulok = str(record.get(config.COLUMN_NAMES.LOKASI, '')).strip()
+                # Ambil Nomor Ulok (Pastikan nama kolom di Sheet SPK sesuai, biasanya "Nomor Ulok")
+                ulok = str(record.get('Nomor Ulok', '')).strip()
                 
                 # Jika Nomor Ulok kosong, skip
                 if not ulok:
                     continue
 
-                # Ambil field lain
-                # Cek variasi penulisan header Nama Toko
-                nama_toko = str(record.get('Nama_Toko', record.get('nama_toko', ''))).strip()
-                lingkup = str(record.get(config.COLUMN_NAMES.LINGKUP_PEKERJAAN, '')).strip()
-                proyek = str(record.get(config.COLUMN_NAMES.PROYEK, '')).strip()
+                # Ambil field lain dari Sheet SPK
+                # Note: Di Sheet SPK biasanya header "Lingkup Pekerjaan" pakai spasi, bukan underscore
+                nama_toko = str(record.get('Nama Toko', record.get('nama_toko', ''))).strip()
+                lingkup = str(record.get('Lingkup Pekerjaan', record.get('Lingkup_Pekerjaan', ''))).strip()
+                proyek = str(record.get('Proyek', '')).strip()
 
                 # Buat kunci unik kombinasi Ulok + Lingkup
-                # Agar jika ada 1 Ulok dengan 2 lingkup (ME & Sipil), keduanya muncul
                 unique_key = f"{ulok}-{lingkup}"
 
                 if unique_key not in seen:
                     seen.add(unique_key)
                     
-                    # Format Label sesuai request: "Z001... - Reguler (ME)"
-                    # Kita gabungkan data agar informatif di dropdown
+                    # Format Label: "Z001... - Reguler (ME) - Nama Toko"
                     label = f"{ulok} - {proyek} ({lingkup}) - {nama_toko}"
 
                     ulok_list.append({
                         "value": ulok,           # Nilai yang akan dikirim saat submit
                         "label": label,          # Teks yang tampil di dropdown
-                        
+                        "nama_toko": nama_toko,  
+                        "lingkup": lingkup,
+                        "proyek": proyek
                     })
 
-            # Opsional: Sortir berdasarkan Nomor Ulok
+            # Sortir berdasarkan Nomor Ulok
             ulok_list.sort(key=lambda x: x['value'])
             
             return ulok_list
 
         except Exception as e:
-            print(f"Error saat mengambil daftar Nomor Ulok SPK dari Form2: {e}")
-            raise
+            print(f"Error saat mengambil daftar data dari Sheet SPK: {e}")
+            return [] # Kembalikan list kosong agar tidak error 500
 
     # Mengambil salah satu data rab berdasarkan nomor ulok
     def get_rab_data_by_ulok(self, kode_ulok):

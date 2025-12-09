@@ -1211,11 +1211,11 @@ def get_kontraktor():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/rab_data', methods=['GET'])
-def get_all_rab_data_list():
+@app.route('/api/spk_data', methods=['GET'])
+def get_all_spk_data_list():
     try:
         # Mengembalikan list of objects langsung
-        ulok_list = google_provider.get_all_rab_data()
+        ulok_list = google_provider.get_all_spk_ulok()
         return jsonify(ulok_list), 200
     except Exception as e:
         traceback.print_exc()

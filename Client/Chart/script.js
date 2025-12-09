@@ -137,7 +137,7 @@ function changeUlok() {
     
     // Update task select dropdown
     const taskSelect = document.getElementById('taskSelect');
-    taskSelect.innerHTML = '<option value="">Semua Tahap</option>';
+    taskSelect.innerHTML = '<option value="">--/--</option>';
     currentTasks.forEach(task => {
         const option = document.createElement('option');
         option.value = task.id;

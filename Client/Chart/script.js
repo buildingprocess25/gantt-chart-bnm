@@ -1,7 +1,8 @@
 const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
 
-const PYTHON_API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api/rab_data";
+const PYTHON_API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api/spk_data";
 
+let const= [];
 const projects = [
     {
         ulok: 'Z001-2024-0001',

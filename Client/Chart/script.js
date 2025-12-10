@@ -1,7 +1,8 @@
 // ==================== API CONFIGURATION ====================
 const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
-    spkList: `${API_BASE_URL}/get_gantt_data?ulok=Z001-2512-4444&lingkup=Sipil`
+    spkList: `${API_BASE_URL}/spk_data`,
+    ganttData: '${API_BASE_URL}/get_gantt_data?ulok=Z001-2512-4444&lingkup=Sipil',
 };
 
 let projects = [];

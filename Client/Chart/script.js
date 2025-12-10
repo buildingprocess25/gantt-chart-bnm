@@ -1,8 +1,7 @@
 // ==================== API CONFIGURATION ====================
 const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
-    spkList: `${API_BASE_URL}/spk_data`,
-    spkDetail: (ulok) => `${API_BASE_URL}/spk/${ulok}`
+    spkList: `${API_BASE_URL}/spk_data`
 };
 
 let projects = [];
@@ -90,6 +89,56 @@ function showSelectProjectMessage() {
     document.getElementById('exportButtons').style.display = 'none';
 }
 
+// ==================== PARSE PROJECT DATA ====================
+function parseProjectFromLabel(label, value) {
+    // Format label: "TZ01-2511-0003 - Alfamart Reguler (ME) - DS PERTIGAAN JAHA"
+    const parts = label.split(' - ');
+    
+    let ulokNumber = value.replace(/-ME|-Sipil/gi, '');
+    let projectName = "Reguler";
+    let storeName = "Tidak Diketahui";
+    let workType = 'Sipil';
+    let projectType = "Reguler";
+    
+    // Tentukan jenis pekerjaan dari label
+    if (label.toUpperCase().includes('(ME)')) {
+        workType = 'ME';
+    }
+    
+    // Parse parts
+    if (parts.length >= 3) {
+        // Part 0: Nomor Ulok
+        // Part 1: Jenis Proyek (bisa ada (ME) atau (Sipil))
+        // Part 2: Nama Toko
+        
+        projectName = parts[1].replace(/\(ME\)|\(Sipil\)/gi, '').trim();
+        storeName = parts[2].trim();
+        
+        // Cek apakah Renovasi atau Reguler
+        if (label.toUpperCase().includes('RENOVASI') || ulokNumber.includes('-R')) {
+            projectType = "Renovasi";
+        }
+    } else if (parts.length === 2) {
+        storeName = parts[1].replace(/\(ME\)|\(Sipil\)/gi, '').trim();
+    }
+    
+    return {
+        ulok: value,
+        ulokNumber: ulokNumber,
+        name: projectName,
+        store: storeName,
+        work: workType,
+        projectType: projectType,
+        contractor: "Belum Ditentukan",
+        startDate: new Date().toISOString().split('T')[0],
+        durasi: workType === 'ME' ? 37 : 184, // Default durasi berdasarkan template
+        alamat: "",
+        status: "Berjalan",
+        regional: "",
+        area: ""
+    };
+}
+
 // ==================== FETCH DATA FROM API ====================
 async function loadDataAndInit() {
     try {
@@ -103,42 +152,12 @@ async function loadDataAndInit() {
         const apiData = await response.json();
         console.log("✅ Data dari API:", apiData);
 
-        // Mapping data API ke format project
-        projects = apiData.map(item => {
-            const rawLabel = item.label || "";
-            
-            // Tentukan jenis pekerjaan
-            let workType = 'Sipil';
-            if (rawLabel.toUpperCase().includes('(ME)')) {
-                workType = 'ME';
-            }
-
-            // Parse nama toko & project
-            const parts = rawLabel.split(' - ');
-            let storeName = "Tidak Diketahui";
-            let projectName = "Reguler";
-
-            if (parts.length >= 3) {
-                storeName = parts[parts.length - 1]; 
-                projectName = parts[1].replace(/\(ME\)|\(Sipil\)/gi, '').trim();
-            } else if (parts.length === 2) {
-                storeName = parts[1];
-            }
-
-            return {
-                ulok: item.value,
-                name: projectName,
-                store: storeName,
-                work: workType,
-                contractor: "Memuat...",
-                startDate: new Date().toISOString().split('T')[0],
-                durasi: null,
-                alamat: "",
-                status: ""
-            };
-        });
+        // Mapping data API ke format project dengan parsing yang lebih baik
+        projects = apiData.map(item => parseProjectFromLabel(item.label, item.value));
 
         console.log("✅ Projects loaded:", projects.length);
+        console.log("📋 Sample project:", projects[0]);
+        
         initChart();
 
     } catch (error) {
@@ -178,18 +197,7 @@ async function changeUlok() {
         return;
     }
     
-    // Show loading di project info
-    document.getElementById('projectInfo').innerHTML = `
-        <div style="text-align: center; padding: 20px; color: white;">
-            <span>⏳ Memuat detail proyek...</span>
-        </div>
-    `;
-    
     currentProject = projects.find(p => p.ulok === selectedUlok);
-    
-    // Fetch detail dari backend
-    await fetchProjectDetail(selectedUlok);
-    
     currentTasks = projectTasks[selectedUlok];
     
     // Update task select dropdown
@@ -202,126 +210,12 @@ async function changeUlok() {
         taskSelect.appendChild(option);
     });
     
+    console.log("✅ Selected project:", currentProject);
+    
     renderProjectInfo();
     renderChart();
     updateStats();
     document.getElementById('exportButtons').style.display = 'flex';
-}
-
-// ==================== FETCH PROJECT DETAIL ====================
-async function fetchProjectDetail(ulok) {
-    try {
-        console.log("🔍 Fetching detail for:", ulok);
-        
-        const response = await fetch(ENDPOINTS.spkDetail(ulok));
-        
-        if (!response.ok) {
-            console.warn(`⚠️ API returned ${response.status} for ${ulok}`);
-            console.log("💡 Menggunakan data default");
-            currentProject.contractor = "Belum Ditentukan";
-            return;
-        }
-        
-        const data = await response.json();
-        console.log("📦 Raw API Response:", data);
-        
-        // Coba berbagai kemungkinan struktur response
-        let projectData = null;
-        
-        // Kemungkinan 1: { data: {...} }
-        if (data.data) {
-            projectData = data.data;
-        }
-        // Kemungkinan 2: { spk: {...} }
-        else if (data.spk) {
-            projectData = data.spk;
-        }
-        // Kemungkinan 3: Direct object
-        else if (data.Nama_Kontraktor || data.nama_kontraktor || data.contractor) {
-            projectData = data;
-        }
-        // Kemungkinan 4: Array dengan 1 item
-        else if (Array.isArray(data) && data.length > 0) {
-            projectData = data[0];
-        }
-        
-        if (!projectData) {
-            console.warn("⚠️ Struktur data tidak dikenali");
-            console.log("💡 Menggunakan data default");
-            currentProject.contractor = "Belum Ditentukan";
-            return;
-        }
-        
-        console.log("✅ Parsed project data:", projectData);
-        
-        // Helper function untuk mengambil value dengan berbagai kemungkinan key
-        const getValue = (obj, ...keys) => {
-            for (const key of keys) {
-                if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
-                    return obj[key];
-                }
-            }
-            return null;
-        };
-        
-        // Update project dengan data dari API
-        currentProject.name = getValue(projectData, 
-            'Proyek', 'proyek', 'nama_proyek', 'Nama_Proyek', 'project_name', 'projectName'
-        ) || currentProject.name;
-        
-        currentProject.store = getValue(projectData,
-            'Nama_Toko', 'nama_toko', 'NamaToko', 'store_name', 'storeName', 'toko'
-        ) || currentProject.store;
-        
-        currentProject.contractor = getValue(projectData,
-            'Nama_Kontraktor', 'Nama Kontraktor', 'nama_kontraktor', 'NamaKontraktor', 
-            'contractor', 'kontraktor', 'Kontraktor'
-        ) || "Belum Ditentukan";
-        
-        const rawStartDate = getValue(projectData,
-            'Waktu_Mulai', 'Waktu Mulai', 'waktu_mulai', 'WaktuMulai',
-            'start_date', 'startDate', 'tanggal_mulai', 'TanggalMulai'
-        );
-        
-        if (rawStartDate) {
-            // Parse berbagai format tanggal
-            const date = new Date(rawStartDate);
-            if (!isNaN(date)) {
-                currentProject.startDate = date.toISOString().split('T')[0];
-            }
-        }
-        
-        const rawDurasi = getValue(projectData,
-            'Durasi', 'durasi', 'duration', 'Duration'
-        );
-        
-        if (rawDurasi !== null) {
-            currentProject.durasi = parseInt(rawDurasi) || null;
-        }
-        
-        currentProject.alamat = getValue(projectData,
-            'Alamat', 'alamat', 'address', 'Address', 'lokasi', 'Lokasi'
-        ) || "";
-        
-        currentProject.status = getValue(projectData,
-            'Status', 'status', 'project_status', 'projectStatus'
-        ) || "";
-        
-        currentProject.regional = getValue(projectData,
-            'Regional', 'regional', 'region', 'Region'
-        ) || "";
-        
-        currentProject.area = getValue(projectData,
-            'Area', 'area'
-        ) || "";
-        
-        console.log("✅ Project updated:", currentProject);
-        
-    } catch (error) {
-        console.error("❌ Error in fetchProjectDetail:", error);
-        console.log("💡 Menggunakan data default");
-        currentProject.contractor = "Belum Ditentukan";
-    }
 }
 
 // ==================== RENDER FUNCTIONS ====================
@@ -345,8 +239,8 @@ function renderProjectInfo() {
             <div class="project-value">${currentProject.ulok}</div>
         </div>
         <div class="project-detail">
-            <div class="project-label">Nama Proyek</div>
-            <div class="project-value">${currentProject.name}</div>
+            <div class="project-label">Jenis Proyek</div>
+            <div class="project-value">${currentProject.projectType}</div>
         </div>
         <div class="project-detail">
             <div class="project-label">Nama Toko</div>
@@ -658,8 +552,8 @@ function exportToExcel() {
     const data = [
         ["Laporan Jadwal Proyek"],
         ["No. Ulok", currentProject.ulok],
-        ["Nama Proyek", currentProject.name],
-        ["Lokasi", currentProject.store],
+        ["Jenis Proyek", currentProject.projectType],
+        ["Nama Toko", currentProject.store],
         ["Pekerjaan", currentProject.work],
         ["Kontraktor", currentProject.contractor],
         ["Tanggal Mulai", formatDateID(startDate)],

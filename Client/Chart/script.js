@@ -1,8 +1,8 @@
 // ==================== API CONFIGURATION ====================
 const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
-    spkList: `${API_BASE_URL}/spk_data`,           // List semua SPK
-    ganttData: `${API_BASE_URL}/get_gantt_data`    // Detail SPK untuk Gantt
+    spkList: `${API_BASE_URL}/spk_data`           // List semua SPK
+    // Detail akan diambil dari endpoint lain atau dari spk_data langsung
 };
 
 let projects = [];
@@ -48,7 +48,7 @@ document.getElementById('logout-button-form').addEventListener('click', () => {
 
 // ==================== HELPER FUNCTIONS ====================
 function formatDateID(date) {
-    const options = { day: 'numeric', month: 'short', year: '2-bit' };
+    const options = { day: 'numeric', month: 'short', year: 'numeric' };
     return date.toLocaleDateString('id-ID', options);
 }
 
@@ -202,51 +202,58 @@ async function changeUlok() {
 // ==================== FETCH PROJECT DETAIL ====================
 async function fetchProjectDetail(ulok) {
     try {
-        showLoadingMessage();
+        console.log("🔍 Attempting to fetch detail for:", ulok);
         
-        const workType = currentProject.work;
+        // SOLUSI: Karena endpoint detail tidak ada (404), 
+        // kita coba beberapa alternatif endpoint yang mungkin ada
         
-        // Build URL dengan parameter
-        const url = `${ENDPOINTS.ganttData}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(workType)}`;
-        console.log("🔍 Fetching detail from:", url);
+        const possibleEndpoints = [
+            `${API_BASE_URL}/spk/${ulok}`,
+            `${API_BASE_URL}/spk_detail?ulok=${ulok}`,
+            `${API_BASE_URL}/gantt/${ulok}`,
+        ];
         
-        const response = await fetch(url);
+        let detailFound = false;
         
-        if (!response.ok) {
-            console.warn(`⚠️ API returned ${response.status}, using default data`);
-            return; // Gunakan data default jika gagal
+        for (const endpoint of possibleEndpoints) {
+            try {
+                console.log("🔍 Trying endpoint:", endpoint);
+                const response = await fetch(endpoint);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log("✅ Success with endpoint:", endpoint);
+                    console.log("📦 Data received:", data);
+                    
+                    // Process data jika format sesuai
+                    if (data && (data.spk || data.data || data.Nama_Kontraktor)) {
+                        const spk = data.spk || data.data || data;
+                        
+                        currentProject.name = spk.Proyek || spk.nama_proyek || currentProject.name;
+                        currentProject.store = spk.Nama_Toko || spk.nama_toko || currentProject.store;
+                        currentProject.contractor = spk['Nama Kontraktor'] || spk.nama_kontraktor || spk.kontraktor || "Belum Ditentukan";
+                        currentProject.startDate = spk['Waktu Mulai'] || spk.waktu_mulai || spk.start_date || currentProject.startDate;
+                        currentProject.durasi = spk.Durasi || spk.durasi || null;
+                        currentProject.alamat = spk.Alamat || spk.alamat || "";
+                        currentProject.status = spk.Status || spk.status || "";
+                        
+                        console.log("✅ Project updated:", currentProject);
+                        detailFound = true;
+                        break;
+                    }
+                }
+            } catch (err) {
+                console.log("❌ Endpoint failed:", endpoint, err.message);
+            }
         }
         
-        const data = await response.json();
-        console.log("✅ Detail response:", data);
-        
-        // Process data jika berhasil
-        if (data.status === "success" && data.spk) {
-            const spk = data.spk;
-            
-            // Update project data
-            currentProject.name = spk.Proyek || currentProject.name;
-            currentProject.store = spk.Nama_Toko || currentProject.store;
-            currentProject.contractor = spk['Nama Kontraktor'] || "Belum Ditentukan";
-            currentProject.startDate = spk['Waktu Mulai'] || currentProject.startDate;
-            currentProject.durasi = spk.Durasi || null;
-            currentProject.alamat = spk.Alamat || "";
-            currentProject.status = spk.Status || "";
-            
-            console.log("✅ Project updated:", currentProject);
-            
-            // Jika ada data RAB (tahapan detail dari backend)
-            if (data.rab && Array.isArray(data.rab) && data.rab.length > 0) {
-                console.log("✅ RAB data available:", data.rab.length, "items");
-                // TODO: Map data RAB ke currentTasks jika diperlukan
-            }
-        } else {
-            console.warn("⚠️ Invalid response format, using defaults");
+        if (!detailFound) {
+            console.warn("⚠️ No detail endpoint available, using default data");
+            console.log("💡 Tip: Pastikan backend memiliki endpoint untuk detail SPK");
         }
         
     } catch (error) {
-        console.error("❌ Error fetching detail:", error);
-        // Tetap lanjut dengan data default
+        console.error("❌ Error in fetchProjectDetail:", error);
     }
 }
 

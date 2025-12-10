@@ -1,16 +1,15 @@
-const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
-const PYTHON_API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api/spk_data";
-// GANTI URL INI SESUAI ENDPOINT BACKEND ANDA
-// Contoh alternatif jika berbeda:
-// const GANTT_DATA_URL = "https://gantt-chart-bnm.onrender.com/api/spk_detail";
-// const GANTT_DATA_URL = "https://gantt-chart-bnm.onrender.com/api/spk";
-const GANTT_DATA_URL = "https://gantt-chart-bnm.onrender.com/api/get_gantt_data";
+// ==================== API CONFIGURATION ====================
+const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
+const ENDPOINTS = {
+    spkList: `${API_BASE_URL}/spk_data`,           // List semua SPK
+    ganttData: `${API_BASE_URL}/get_gantt_data`    // Detail SPK untuk Gantt
+};
 
 let projects = [];
 let currentProject = null;
 let projectTasks = {};
 
-// Template tahapan untuk pekerjaan ME (Mechanical & Electrical)
+// ==================== TASK TEMPLATES ====================
 const taskTemplateME = [
     { id: 1, name: 'Instalasi', start: 1, duration: 10, dependencies: [] },
     { id: 2, name: 'Fixture', start: 8, duration: 15, dependencies: [1] },
@@ -18,7 +17,6 @@ const taskTemplateME = [
     { id: 4, name: 'Pekerjaan SBO', start: 25, duration: 12, dependencies: [2, 3] },
 ];
 
-// Template tahapan untuk pekerjaan Sipil (Civil Construction)
 const taskTemplateSipil = [
     { id: 1, name: 'Pekerjaan Persiapan', start: 1, duration: 7, dependencies: [] },
     { id: 2, name: 'Pekerjaan Bobokan/Bongkaran', start: 8, duration: 12, dependencies: [1] },
@@ -27,7 +25,7 @@ const taskTemplateSipil = [
     { id: 5, name: 'Pekerjaan Pasangan', start: 43, duration: 10, dependencies: [4] },
     { id: 6, name: 'Pekerjaan Besi', start: 53, duration: 20, dependencies: [5] },
     { id: 7, name: 'Pekerjaan Keramik', start: 73, duration: 8, dependencies: [6] },
-    { id: 8, name: 'Pekerjaan Plumbing ', start: 81, duration: 25, dependencies: [7] },
+    { id: 8, name: 'Pekerjaan Plumbing', start: 81, duration: 25, dependencies: [7] },
     { id: 9, name: 'Pekerjaan Sanitary & Acecories', start: 106, duration: 10, dependencies: [8] },
     { id: 10, name: 'Pekerjaan Janitor', start: 116, duration: 20, dependencies: [9] },
     { id: 11, name: 'Pekerjaan Atap', start: 136, duration: 12, dependencies: [10] },
@@ -42,69 +40,16 @@ let currentTasks = [];
 const totalDaysME = 100;
 const totalDaysSipil = 205;
 
+// ==================== INITIALIZATION ====================
 document.getElementById('logout-button-form').addEventListener('click', () => {
     sessionStorage.clear();
     window.location.href = 'https://gantt-chart-bnm.vercel.app';
 });
 
-// --- FUNGSI FORMAT TANGGAL ---
+// ==================== HELPER FUNCTIONS ====================
 function formatDateID(date) {
-    const options = { day: 'numeric', month: 'short', year: '2-digit' };
+    const options = { day: 'numeric', month: 'short', year: '2-bit' };
     return date.toLocaleDateString('id-ID', options);
-}
-
-// --- FUNGSI FETCH DATA DARI API ---
-async function loadDataAndInit() {
-    try {
-        // Tampilkan loading indicator
-        showLoadingMessage();
-
-        const response = await fetch(PYTHON_API_BASE_URL);
-        if (!response.ok) throw new Error("Gagal mengambil data API");
-        
-        const apiData = await response.json();
-
-        // Mapping Data API ke Format Project
-        projects = apiData.map(item => {
-            const rawLabel = item.label || "";
-            
-            // Tentukan Jenis Pekerjaan
-            let workType = 'Sipil';
-            if (rawLabel.toUpperCase().includes('(ME)')) {
-                workType = 'ME';
-            }
-
-            // Parsing Nama Toko & Nama Project
-            const parts = rawLabel.split(' - ');
-            let storeName = "Tidak Diketahui";
-            let projectName = "Reguler";
-
-            if (parts.length >= 3) {
-                storeName = parts[parts.length - 1]; 
-                projectName = parts[1].replace(/\(ME\)|\(Sipil\)/gi, '').trim();
-            } else if (parts.length === 2) {
-                storeName = parts[1];
-            }
-
-            const today = new Date().toISOString().split('T')[0];
-
-            return {
-                ulok: item.value,
-                name: projectName,
-                store: storeName,
-                work: workType,
-                contractor: "Memuat...", // Placeholder, akan diupdate saat fetch detail
-                startDate: today,
-                durasi: null // Akan diisi saat fetch detail
-            };
-        });
-
-        initChart();
-
-    } catch (error) {
-        console.error("Error loading data:", error);
-        showErrorMessage("Gagal memuat data proyek dari server. Silakan refresh halaman.");
-    }
 }
 
 function showLoadingMessage() {
@@ -125,8 +70,79 @@ function showErrorMessage(message) {
             <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
             <h2 style="margin-bottom: 15px;">Terjadi Kesalahan</h2>
             <p>${message}</p>
+            <button onclick="loadDataAndInit()" style="margin-top: 20px; padding: 10px 20px; background: #3182ce; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                🔄 Coba Lagi
+            </button>
         </div>
     `;
+}
+
+function showSelectProjectMessage() {
+    const chart = document.getElementById('ganttChart');
+    chart.innerHTML = `
+        <div style="text-align: center; padding: 60px; color: #6c757d;">
+            <h2 style="margin-bottom: 15px;">📋 Pilih No. Ulok</h2>
+            <p>Data berhasil dimuat. Silakan pilih proyek di atas.</p>
+        </div>
+    `;
+    document.getElementById('projectInfo').innerHTML = '';
+    document.getElementById('stats').innerHTML = '';
+    document.getElementById('exportButtons').style.display = 'none';
+}
+
+// ==================== FETCH DATA FROM API ====================
+async function loadDataAndInit() {
+    try {
+        showLoadingMessage();
+
+        const response = await fetch(ENDPOINTS.spkList);
+        if (!response.ok) {
+            throw new Error(`HTTP Error: ${response.status}`);
+        }
+        
+        const apiData = await response.json();
+        console.log("✅ Data dari API:", apiData);
+
+        // Mapping data API ke format project
+        projects = apiData.map(item => {
+            const rawLabel = item.label || "";
+            
+            // Tentukan jenis pekerjaan
+            let workType = 'Sipil';
+            if (rawLabel.toUpperCase().includes('(ME)')) {
+                workType = 'ME';
+            }
+
+            // Parse nama toko & project
+            const parts = rawLabel.split(' - ');
+            let storeName = "Tidak Diketahui";
+            let projectName = "Reguler";
+
+            if (parts.length >= 3) {
+                storeName = parts[parts.length - 1]; 
+                projectName = parts[1].replace(/\(ME\)|\(Sipil\)/gi, '').trim();
+            } else if (parts.length === 2) {
+                storeName = parts[1];
+            }
+
+            return {
+                ulok: item.value,
+                name: projectName,
+                store: storeName,
+                work: workType,
+                contractor: "Belum Ditentukan", // Default
+                startDate: new Date().toISOString().split('T')[0],
+                durasi: null
+            };
+        });
+
+        console.log("✅ Projects loaded:", projects.length);
+        initChart();
+
+    } catch (error) {
+        console.error("❌ Error loading data:", error);
+        showErrorMessage(`Gagal memuat data: ${error.message}`);
+    }
 }
 
 function initChart() {
@@ -150,19 +166,7 @@ function initChart() {
     showSelectProjectMessage();
 }
 
-function showSelectProjectMessage() {
-    const chart = document.getElementById('ganttChart');
-    chart.innerHTML = `
-        <div style="text-align: center; padding: 60px; color: #6c757d;">
-            <h2 style="margin-bottom: 15px;">📋 Pilih No. Ulok</h2>
-            <p>Data berhasil dimuat. Silakan pilih proyek di atas.</p>
-        </div>
-    `;
-    document.getElementById('projectInfo').innerHTML = '';
-    document.getElementById('stats').innerHTML = '';
-    document.getElementById('exportButtons').style.display = 'none';
-}
-
+// ==================== CHANGE ULOK (SELECT PROJECT) ====================
 async function changeUlok() {
     const ulokSelect = document.getElementById('ulokSelect');
     const selectedUlok = ulokSelect.value;
@@ -174,7 +178,7 @@ async function changeUlok() {
     
     currentProject = projects.find(p => p.ulok === selectedUlok);
     
-    // Fetch detail data dari API
+    // Fetch detail dari backend
     await fetchProjectDetail(selectedUlok);
     
     currentTasks = projectTasks[selectedUlok];
@@ -195,144 +199,68 @@ async function changeUlok() {
     document.getElementById('exportButtons').style.display = 'flex';
 }
 
+// ==================== FETCH PROJECT DETAIL ====================
 async function fetchProjectDetail(ulok) {
     try {
         showLoadingMessage();
         
-        // Ambil workType dari currentProject
         const workType = currentProject.work;
         
-        // SOLUSI 1: Coba dengan format URL berbeda
-        // Coba dulu tanpa encoding
-        let url = `${GANTT_DATA_URL}?ulok=${ulok}&lingkup=${workType}`;
-        console.log("Fetching detail from (attempt 1):", url);
+        // Build URL dengan parameter
+        const url = `${ENDPOINTS.ganttData}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(workType)}`;
+        console.log("🔍 Fetching detail from:", url);
         
-        let response = await fetch(url);
+        const response = await fetch(url);
         
-        // SOLUSI 2: Jika gagal, coba dengan All SPK endpoint lalu filter manual
         if (!response.ok) {
-            console.warn(`API detail gagal (${response.status}), mencoba endpoint alternatif...`);
-            
-            // Fetch semua data SPK
-            const allSpkUrl = PYTHON_API_BASE_URL;
-            console.log("Fetching from alternative endpoint:", allSpkUrl);
-            
-            response = await fetch(allSpkUrl);
-            
-            if (!response.ok) {
-                console.error("Semua endpoint gagal");
-                currentProject.contractor = "API Tidak Tersedia";
-                return;
-            }
-            
-            const allData = await response.json();
-            console.log("All SPK Data:", allData);
-            
-            // Filter data berdasarkan ulok yang cocok
-            const matchedProject = allData.find(item => item.value === ulok);
-            
-            if (matchedProject && matchedProject.contractor) {
-                // Jika data kontraktor ada di list endpoint
-                currentProject.contractor = matchedProject.contractor;
-                console.log("Contractor found in list:", matchedProject.contractor);
-            } else {
-                // SOLUSI 3: Gunakan endpoint detail dengan variasi parameter
-                console.log("Trying alternative parameter format...");
-                
-                // Coba beberapa variasi URL
-                const urlVariations = [
-                    `${GANTT_DATA_URL}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(workType)}`,
-                    `${GANTT_DATA_URL}/${ulok}?lingkup=${workType}`,
-                    `${GANTT_DATA_URL}/${ulok}`,
-                    `https://gantt-chart-bnm.onrender.com/api/spk/${ulok}`
-                ];
-                
-                let detailFound = false;
-                
-                for (const testUrl of urlVariations) {
-                    console.log("Testing URL:", testUrl);
-                    try {
-                        const testResponse = await fetch(testUrl);
-                        if (testResponse.ok) {
-                            const testData = await testResponse.json();
-                            if (testData.status === "success" && testData.spk) {
-                                console.log("Success with URL:", testUrl);
-                                await processSpkData(testData);
-                                detailFound = true;
-                                break;
-                            }
-                        }
-                    } catch (e) {
-                        console.log("URL failed:", testUrl);
-                    }
-                }
-                
-                if (!detailFound) {
-                    currentProject.contractor = "Data Tidak Ditemukan";
-                }
-            }
-            return;
+            console.warn(`⚠️ API returned ${response.status}, using default data`);
+            return; // Gunakan data default jika gagal
         }
         
-        // Jika response OK dari attempt pertama
         const data = await response.json();
-        console.log("API Response:", data);
+        console.log("✅ Detail response:", data);
         
-        await processSpkData(data);
+        // Process data jika berhasil
+        if (data.status === "success" && data.spk) {
+            const spk = data.spk;
+            
+            // Update project data
+            currentProject.name = spk.Proyek || currentProject.name;
+            currentProject.store = spk.Nama_Toko || currentProject.store;
+            currentProject.contractor = spk['Nama Kontraktor'] || "Belum Ditentukan";
+            currentProject.startDate = spk['Waktu Mulai'] || currentProject.startDate;
+            currentProject.durasi = spk.Durasi || null;
+            currentProject.alamat = spk.Alamat || "";
+            currentProject.status = spk.Status || "";
+            
+            console.log("✅ Project updated:", currentProject);
+            
+            // Jika ada data RAB (tahapan detail dari backend)
+            if (data.rab && Array.isArray(data.rab) && data.rab.length > 0) {
+                console.log("✅ RAB data available:", data.rab.length, "items");
+                // TODO: Map data RAB ke currentTasks jika diperlukan
+            }
+        } else {
+            console.warn("⚠️ Invalid response format, using defaults");
+        }
         
     } catch (error) {
-        console.error("Error fetching project detail:", error);
-        currentProject.contractor = "Error: " + error.message;
+        console.error("❌ Error fetching detail:", error);
+        // Tetap lanjut dengan data default
     }
 }
 
-// Fungsi helper untuk memproses data SPK
-async function processSpkData(data) {
-    if (data.status === "success" && data.spk) {
-        // Update data proyek dengan informasi dari API
-        currentProject.name = data.spk.Proyek || currentProject.name;
-        currentProject.store = data.spk.Nama_Toko || currentProject.store;
-        
-        // Debug: Log nilai kontraktor
-        console.log("Nama Kontraktor dari API:", data.spk['Nama Kontraktor']);
-        
-        // Update contractor dengan pengecekan yang lebih ketat
-        if (data.spk['Nama Kontraktor']) {
-            currentProject.contractor = data.spk['Nama Kontraktor'];
-        } else {
-            currentProject.contractor = "Belum Ditentukan";
-        }
-        
-        currentProject.startDate = data.spk['Waktu Mulai'] || currentProject.startDate;
-        currentProject.durasi = data.spk.Durasi || null;
-        currentProject.alamat = data.spk.Alamat || "";
-        currentProject.status = data.spk.Status || "";
-        
-        console.log("✅ Current Project after update:", currentProject);
-        
-        // Jika ada data RAB/tahapan
-        if (data.rab && data.rab.length > 0) {
-            console.log("Data RAB tersedia:", data.rab);
-        }
-    } else {
-        console.warn("Data SPK tidak valid");
-        currentProject.contractor = "Data Tidak Valid";
-    }
-}
-
+// ==================== RENDER FUNCTIONS ====================
 function renderProjectInfo() {
     if (!currentProject) return;
     
     const info = document.getElementById('projectInfo');
+    const startDate = currentProject.startDate ? new Date(currentProject.startDate) : new Date();
+    const tglMulai = formatDateID(startDate);
     
-    const tglMulai = currentProject.startDate 
-        ? formatDateID(new Date(currentProject.startDate)) 
-        : '-';
-    
-    // Hitung tanggal selesai jika durasi tersedia
     let tglSelesai = '-';
-    if (currentProject.startDate && currentProject.durasi) {
-        const endDate = new Date(currentProject.startDate);
+    if (currentProject.durasi) {
+        const endDate = new Date(startDate);
         endDate.setDate(endDate.getDate() + currentProject.durasi);
         tglSelesai = formatDateID(endDate);
     }
@@ -352,7 +280,7 @@ function renderProjectInfo() {
         </div>
         <div class="project-detail">
             <div class="project-label">Lingkup Pekerjaan</div>
-            <div class="project-value" style="color: white;">${currentProject.work}</div>
+            <div class="project-value">${currentProject.work}</div>
         </div>
         <div class="project-detail">
             <div class="project-label">Kontraktor</div>
@@ -379,7 +307,7 @@ function renderChart() {
     if (!currentProject) return;
     
     const chart = document.getElementById('ganttChart');
-    const DAY_WIDTH = 40; 
+    const DAY_WIDTH = 40;
     
     let maxTaskEndDay = 0;
     currentTasks.forEach(task => {
@@ -393,9 +321,9 @@ function renderChart() {
     );
 
     const totalChartWidth = totalDaysToRender * DAY_WIDTH;
-    const projectStartDate = currentProject.startDate ? new Date(currentProject.startDate) : new Date();
+    const projectStartDate = new Date(currentProject.startDate);
 
-    // --- RENDER HEADER ---
+    // RENDER HEADER
     let html = '<div class="chart-header">';
     html += '<div class="task-column">Tahapan</div>';
     html += `<div class="timeline-column" style="width: ${totalChartWidth}px;">`;
@@ -404,7 +332,7 @@ function renderChart() {
         const currentDate = new Date(projectStartDate);
         currentDate.setDate(projectStartDate.getDate() + i);
 
-        const dateNum = currentDate.getDate(); 
+        const dateNum = currentDate.getDate();
         const monthName = currentDate.toLocaleDateString('id-ID', { month: 'short' });
         
         const isSunday = currentDate.getDay() === 0;
@@ -417,9 +345,9 @@ function renderChart() {
             </div>
         `;
     }
-    html += '</div></div>'; 
+    html += '</div></div>';
     
-    // --- RENDER BODY (TASKS) ---
+    // RENDER BODY (TASKS)
     html += '<div class="chart-body">';
     
     const originalTemplate = currentProject.work === 'ME' ? taskTemplateME : taskTemplateSipil;
@@ -431,14 +359,13 @@ function renderChart() {
         const taskRealEnd = new Date(taskRealStart);
         taskRealEnd.setDate(taskRealStart.getDate() + task.duration);
 
-        const leftPos = (task.start - 1) * DAY_WIDTH; 
+        const leftPos = (task.start - 1) * DAY_WIDTH;
         const widthPos = task.duration * DAY_WIDTH;
         
         const originalTask = originalTemplate.find(t => t.id === task.id);
         const isDelayed = originalTask ? task.start > originalTask.start : false;
         
-        let barClass = 'on-time';
-        if (isDelayed) barClass = 'delayed';
+        let barClass = isDelayed ? 'delayed' : 'on-time';
         
         const tooltipText = `${task.name}\n${formatDateID(taskRealStart)} s/d ${formatDateID(taskRealEnd)}\n(${task.duration} hari)`;
 
@@ -453,10 +380,10 @@ function renderChart() {
                 title="${tooltipText}">
             ${task.duration}h
         </div>`;
-        html += '</div></div>'; 
+        html += '</div></div>';
     });
     
-    html += '</div>'; 
+    html += '</div>';
     
     chart.innerHTML = html;
     
@@ -500,16 +427,11 @@ function drawDependencyLines() {
                     const deltaX = x2 - x1;
                     const curveAmount = Math.max(Math.abs(deltaX / 2), 40);
                     
-                    const d = `
-                        M ${x1} ${y1} 
-                        C ${x1 + curveAmount} ${y1}, 
-                        ${x2 - curveAmount} ${y2}, 
-                        ${x2} ${y2}
-                    `;
+                    const d = `M ${x1} ${y1} C ${x1 + curveAmount} ${y1}, ${x2 - curveAmount} ${y2}, ${x2} ${y2}`;
 
                     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     path.setAttribute('d', d);
-                    path.classList.add('dependency-line'); 
+                    path.classList.add('dependency-line');
                     path.setAttribute('stroke', '#adb5bd');
                     path.setAttribute('stroke-width', '2');
                     path.setAttribute('fill', 'none');
@@ -520,6 +442,7 @@ function drawDependencyLines() {
     });
 }
 
+// ==================== TASK MANIPULATION ====================
 function applyDelay() {
     if (!currentProject) {
         alert('Pilih No. Ulok terlebih dahulu!');
@@ -569,12 +492,6 @@ function resetChart() {
     updateStats();
 }
 
-window.addEventListener('resize', () => {
-    if (currentProject) {
-        drawDependencyLines();
-    }
-});
-
 function updateStats() {
     if (!currentProject) return;
     
@@ -617,9 +534,10 @@ function updateStats() {
     `;
 }
 
+// ==================== EXPORT FUNCTIONS ====================
 function exportToExcel() {
     if (!currentProject) return;
-    const startDate = currentProject.startDate ? new Date(currentProject.startDate) : new Date();
+    const startDate = new Date(currentProject.startDate);
     
     const data = [
         ["Laporan Jadwal Proyek"],
@@ -634,16 +552,16 @@ function exportToExcel() {
     ];
 
     currentTasks.forEach((task, i) => {
-        const tStart = new Date(startDate); 
+        const tStart = new Date(startDate);
         tStart.setDate(startDate.getDate() + (task.start - 1));
-        const tEnd = new Date(tStart); 
+        const tEnd = new Date(tStart);
         tEnd.setDate(tStart.getDate() + task.duration);
         data.push([
-            i + 1, 
-            task.name, 
-            formatDateID(tStart), 
-            formatDateID(tEnd), 
-            task.duration, 
+            i + 1,
+            task.name,
+            formatDateID(tStart),
+            formatDateID(tEnd),
+            task.duration,
             "Berjalan"
         ]);
     });
@@ -654,5 +572,12 @@ function exportToExcel() {
     XLSX.writeFile(wb, `Jadwal_${currentProject.ulok}.xlsx`);
 }
 
-// START APPLICATION
+// ==================== EVENT LISTENERS ====================
+window.addEventListener('resize', () => {
+    if (currentProject) {
+        drawDependencyLines();
+    }
+});
+
+// ==================== START APPLICATION ====================
 loadDataAndInit();

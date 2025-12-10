@@ -89,7 +89,7 @@ async function loadDataAndInit() {
                 name: projectName,
                 store: storeName,
                 work: workType,
-                contractor: "-",
+                contractor: "Memuat...", // Placeholder, akan diupdate saat fetch detail
                 startDate: today,
                 durasi: null // Akan diisi saat fetch detail
             };
@@ -200,36 +200,54 @@ async function fetchProjectDetail(ulok) {
         
         // Fetch detail dari API dengan parameter ulok dan lingkup
         const url = `${GANTT_DATA_URL}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(workType)}`;
+        console.log("Fetching detail from:", url);
+        
         const response = await fetch(url);
         
         if (!response.ok) {
             console.warn("Detail API tidak tersedia, menggunakan data default");
+            currentProject.contractor = "Tidak Tersedia";
             return;
         }
         
         const data = await response.json();
+        console.log("API Response:", data);
         
         if (data.status === "success" && data.spk) {
             // Update data proyek dengan informasi dari API
             currentProject.name = data.spk.Proyek || currentProject.name;
             currentProject.store = data.spk.Nama_Toko || currentProject.store;
-            currentProject.contractor = data.spk['Nama Kontraktor'] || currentProject.contractor;
+            
+            // Debug: Log nilai kontraktor
+            console.log("Nama Kontraktor dari API:", data.spk['Nama Kontraktor']);
+            
+            // Update contractor dengan pengecekan yang lebih ketat
+            if (data.spk['Nama Kontraktor']) {
+                currentProject.contractor = data.spk['Nama Kontraktor'];
+            } else {
+                currentProject.contractor = "Belum Ditentukan";
+            }
+            
             currentProject.startDate = data.spk['Waktu Mulai'] || currentProject.startDate;
             currentProject.durasi = data.spk.Durasi || null;
             currentProject.alamat = data.spk.Alamat || "";
             currentProject.status = data.spk.Status || "";
             
+            console.log("Current Project after update:", currentProject);
+            
             // Jika ada data RAB/tahapan, bisa digunakan untuk meng-update nama task
-            // Saat ini kita tetap pakai template, tapi bisa dikembangkan
             if (data.rab && data.rab.length > 0) {
                 console.log("Data RAB tersedia:", data.rab);
                 // TODO: Mapping RAB ke tasks jika diperlukan
             }
+        } else {
+            console.warn("Data SPK tidak valid");
+            currentProject.contractor = "Data Tidak Valid";
         }
         
     } catch (error) {
         console.error("Error fetching project detail:", error);
-        // Tetap lanjutkan dengan data default
+        currentProject.contractor = "Error Memuat Data";
     }
 }
 

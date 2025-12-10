@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,24 +8,25 @@
     <link rel="stylesheet" href="style.css" />
     <link rel="icon" href="/Assets/favicon.ico" type="image/x-icon">
     <script>
-      // Security Check
+        // Security Check
         const isAuthenticated = sessionStorage.getItem('authenticated');
         const userRole = sessionStorage.getItem('userRole');
         if (!isAuthenticated) {
-        // Jika belum login, simpan tujuan & alihkan ke halaman login
+            // Jika belum login, simpan tujuan & alihkan ke halaman login
             sessionStorage.setItem('redirectTo', window.location.pathname);
-            window.location.href = '/'; 
-        }   else if (userRole !== 'BRANCH BUILDING SUPPORT') {
-                // Jika sudah login tapi jabatan salah, beri peringatan & alihkan ke homepage
-                alert('Anda tidak memiliki izin untuk mengakses halaman ini.');
-                window.location.href = '/';
-            }
+            window.location.href = '/';
+        } else if (userRole !== 'BRANCH BUILDING SUPPORT') {
+            // Jika sudah login tapi jabatan salah, beri peringatan & alihkan ke homepage
+            alert('Anda tidak memiliki izin untuk mengakses halaman ini.');
+            window.location.href = '/';
+        }
     </script>
 </head>
+
 <body>
     <header>
         <a href="/">
-            <img src="../Assets/Alfamart-Emblem.png" alt="Alfamart Logo" class="header-logo"/>
+            <img src="../Assets/Alfamart-Emblem.png" alt="Alfamart Logo" class="header-logo" />
         </a>
         <h1>Gantt Chart</h1>
         <button id="logout-button-form" class="btn-logout-form">Logout</button>
@@ -51,6 +53,7 @@
             <button class="btn btn-primary" onclick="resetChart()">Reset</button>
         </div>
         <div class="project-info" id="projectInfo"></div>
+        <div class="api-data" id="apiData"></div>
         <div class="export-buttons" id="exportButtons" style="display: none;">
             <button class="btn-export btn-excel" onclick="exportToExcel()">
                 📊 Export to Excel
@@ -71,9 +74,10 @@
             </div>
         </div>
     </div>
-    
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="script.js"></script>
 </body>
+
 </html>

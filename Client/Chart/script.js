@@ -2,12 +2,15 @@
 const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
     spkList: `${API_BASE_URL}/spk_data`,
-    ganttData: '${API_BASE_URL}/get_gantt_data?ulok=Z001-2512-4444&lingkup=Sipil',
+    ganttData: `${API_BASE_URL}/get_gantt_data`,
 };
 
 let projects = [];
 let currentProject = null;
 let projectTasks = {};
+let ganttApiData = null;
+let ganttApiError = null;
+let isLoadingGanttData = false;
 
 // ==================== TASK TEMPLATES ====================
 const taskTemplateME = [
@@ -52,6 +55,33 @@ function formatDateID(date) {
     return date.toLocaleDateString('id-ID', options);
 }
 
+function extractUlokAndLingkup(value) {
+    if (!value) return { ulok: '', lingkup: '' };
+
+    const trimmed = String(value).trim();
+    const parts = trimmed.split('-');
+
+    if (parts.length < 2) {
+        return { ulok: trimmed, lingkup: '' };
+    }
+
+    const lingkupRaw = parts.pop();
+    const ulok = parts.join('-');
+    const lingkupUpper = lingkupRaw.replace(/[^a-zA-Z]/g, '').toUpperCase();
+    const lingkup = lingkupUpper === 'ME' ? 'ME' : 'Sipil';
+
+    return { ulok, lingkup };
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 function showLoadingMessage() {
     const chart = document.getElementById('ganttChart');
     chart.innerHTML = `
@@ -88,33 +118,37 @@ function showSelectProjectMessage() {
     document.getElementById('projectInfo').innerHTML = '';
     document.getElementById('stats').innerHTML = '';
     document.getElementById('exportButtons').style.display = 'none';
+    ganttApiData = null;
+    ganttApiError = null;
+    renderApiData();
 }
 
 // ==================== PARSE PROJECT DATA ====================
 function parseProjectFromLabel(label, value) {
     // Format label: "TZ01-2511-0003 - Alfamart Reguler (ME) - DS PERTIGAAN JAHA"
     const parts = label.split(' - ');
-    
-    let ulokNumber = value.replace(/-ME|-Sipil/gi, '');
+    const { ulok: ulokClean, lingkup } = extractUlokAndLingkup(value);
+
+    let ulokNumber = ulokClean || value.replace(/-ME|-Sipil/gi, '');
     let projectName = "Reguler";
     let storeName = "Tidak Diketahui";
-    let workType = 'Sipil';
+    let workType = lingkup || 'Sipil';
     let projectType = "Reguler";
-    
+
     // Tentukan jenis pekerjaan dari label
     if (label.toUpperCase().includes('(ME)')) {
         workType = 'ME';
     }
-    
+
     // Parse parts
     if (parts.length >= 3) {
         // Part 0: Nomor Ulok
         // Part 1: Jenis Proyek (bisa ada (ME) atau (Sipil))
         // Part 2: Nama Toko
-        
+
         projectName = parts[1].replace(/\(ME\)|\(Sipil\)/gi, '').trim();
         storeName = parts[2].trim();
-        
+
         // Cek apakah Renovasi atau Reguler
         if (label.toUpperCase().includes('RENOVASI') || ulokNumber.includes('-R')) {
             projectType = "Renovasi";
@@ -122,13 +156,15 @@ function parseProjectFromLabel(label, value) {
     } else if (parts.length === 2) {
         storeName = parts[1].replace(/\(ME\)|\(Sipil\)/gi, '').trim();
     }
-    
+
     return {
         ulok: value,
+        ulokClean: ulokClean || ulokNumber,
         ulokNumber: ulokNumber,
         name: projectName,
         store: storeName,
         work: workType,
+        lingkup: workType,
         projectType: projectType,
         contractor: "Belum Ditentukan",
         startDate: new Date().toISOString().split('T')[0],
@@ -149,7 +185,7 @@ async function loadDataAndInit() {
         if (!response.ok) {
             throw new Error(`HTTP Error: ${response.status}`);
         }
-        
+
         const apiData = await response.json();
         console.log("✅ Data dari API:", apiData);
 
@@ -158,7 +194,7 @@ async function loadDataAndInit() {
 
         console.log("✅ Projects loaded:", projects.length);
         console.log("📋 Sample project:", projects[0]);
-        
+
         initChart();
 
     } catch (error) {
@@ -184,23 +220,133 @@ function initChart() {
         option.textContent = `${project.ulok} | ${project.store} (${project.work})`;
         ulokSelect.appendChild(option);
     });
-    
+
     showSelectProjectMessage();
+}
+
+// ==================== GANTT DATA FETCH (API) ====================
+async function fetchGanttDataForSelection(selectedValue) {
+    if (!selectedValue) {
+        ganttApiData = null;
+        ganttApiError = null;
+        renderApiData();
+        return;
+    }
+
+    const { ulok, lingkup } = extractUlokAndLingkup(selectedValue);
+
+    if (!ulok || !lingkup) {
+        ganttApiData = null;
+        ganttApiError = 'Parameter ulok atau lingkup tidak valid.';
+        renderApiData();
+        return;
+    }
+
+    isLoadingGanttData = true;
+    ganttApiError = null;
+    renderApiData();
+
+    const url = `${ENDPOINTS.ganttData}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(lingkup)}`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!response.ok || data?.status === 'error') {
+            const message = data?.message || data?.error || `HTTP ${response.status}`;
+            throw new Error(message);
+        }
+
+        ganttApiData = data;
+    } catch (error) {
+        console.error('❌ Error fetching Gantt data:', error);
+        ganttApiData = null;
+        ganttApiError = error.message || 'Gagal mengambil data Gantt.';
+    } finally {
+        isLoadingGanttData = false;
+        renderApiData();
+    }
+}
+
+function renderApiData() {
+    const container = document.getElementById('apiData');
+    if (!container) return;
+
+    if (isLoadingGanttData) {
+        container.innerHTML = `
+            <div class="api-card">
+                <div class="api-card-title">Memuat data Gantt...</div>
+                <div class="api-row">Mohon tunggu, sedang mengambil data terbaru.</div>
+            </div>
+        `;
+        return;
+    }
+
+    if (ganttApiError) {
+        container.innerHTML = `
+            <div class="api-card api-error">
+                <div class="api-card-title">Gagal memuat data</div>
+                <div class="api-row">${escapeHtml(ganttApiError)}</div>
+            </div>
+        `;
+        return;
+    }
+
+    if (!ganttApiData) {
+        container.innerHTML = `
+            <div class="api-card">
+                <div class="api-card-title">Data Gantt</div>
+                <div class="api-row">Pilih No. Ulok untuk melihat data SPK & RAB.</div>
+            </div>
+        `;
+        return;
+    }
+
+    const spkData = ganttApiData.spk || {};
+    const rabCategories = Array.isArray(ganttApiData.rab) ? ganttApiData.rab : [];
+    const hasSpk = Object.keys(spkData).length > 0;
+
+    const spkRows = hasSpk
+        ? Object.entries(spkData)
+            .map(([key, val]) => `
+                <div class="api-row">
+                    <span class="api-key">${escapeHtml(key)}</span>
+                    <span class="api-value">${escapeHtml(val)}</span>
+                </div>
+            `)
+            .join('')
+        : '<div class="api-row">Data SPK tidak ditemukan.</div>';
+
+    const rabContent = rabCategories.length
+        ? rabCategories.map(cat => `<span class="api-badge">${escapeHtml(cat)}</span>`).join('')
+        : '<div class="api-row">Kategori RAB tidak ditemukan.</div>';
+
+    container.innerHTML = `
+        <div class="api-card">
+            <div class="api-card-title">Data SPK</div>
+            ${spkRows}
+        </div>
+        <div class="api-card">
+            <div class="api-card-title">Kategori RAB (Approved)</div>
+            <div class="api-badge-group">${rabContent}</div>
+        </div>
+    `;
 }
 
 // ==================== CHANGE ULOK (SELECT PROJECT) ====================
 async function changeUlok() {
     const ulokSelect = document.getElementById('ulokSelect');
     const selectedUlok = ulokSelect.value;
-    
+
     if (!selectedUlok) {
         showSelectProjectMessage();
         return;
     }
-    
+
     currentProject = projects.find(p => p.ulok === selectedUlok);
     currentTasks = projectTasks[selectedUlok];
-    
+    fetchGanttDataForSelection(selectedUlok);
+
     // Update task select dropdown
     const taskSelect = document.getElementById('taskSelect');
     taskSelect.innerHTML = '<option value="">-- Pilih Tahap --</option>';
@@ -210,9 +356,9 @@ async function changeUlok() {
         option.textContent = task.name;
         taskSelect.appendChild(option);
     });
-    
+
     console.log("✅ Selected project:", currentProject);
-    
+
     renderProjectInfo();
     renderChart();
     updateStats();
@@ -222,11 +368,11 @@ async function changeUlok() {
 // ==================== RENDER FUNCTIONS ====================
 function renderProjectInfo() {
     if (!currentProject) return;
-    
+
     const info = document.getElementById('projectInfo');
     const startDate = currentProject.startDate ? new Date(currentProject.startDate) : new Date();
     const tglMulai = formatDateID(startDate);
-    
+
     let tglSelesai = '-';
     if (currentProject.durasi) {
         const endDate = new Date(startDate);
@@ -237,7 +383,7 @@ function renderProjectInfo() {
     let html = `
         <div class="project-detail">
             <div class="project-label">No. Ulok</div>
-            <div class="project-value">${currentProject.ulok}</div>
+            <div class="project-value">${currentProject.ulokClean || currentProject.ulok}</div>
         </div>
         <div class="project-detail">
             <div class="project-label">Jenis Proyek</div>
@@ -260,7 +406,7 @@ function renderProjectInfo() {
             <div class="project-value">${tglMulai}</div>
         </div>
     `;
-    
+
     // Tambahkan informasi opsional jika ada
     if (currentProject.durasi) {
         html += `
@@ -274,7 +420,7 @@ function renderProjectInfo() {
         </div>
         `;
     }
-    
+
     if (currentProject.status) {
         html += `
         <div class="project-detail">
@@ -283,7 +429,7 @@ function renderProjectInfo() {
         </div>
         `;
     }
-    
+
     if (currentProject.regional) {
         html += `
         <div class="project-detail">
@@ -292,7 +438,7 @@ function renderProjectInfo() {
         </div>
         `;
     }
-    
+
     if (currentProject.area) {
         html += `
         <div class="project-detail">
@@ -301,7 +447,7 @@ function renderProjectInfo() {
         </div>
         `;
     }
-    
+
     if (currentProject.alamat) {
         html += `
         <div class="project-detail">
@@ -310,16 +456,16 @@ function renderProjectInfo() {
         </div>
         `;
     }
-    
+
     info.innerHTML = html;
 }
 
 function renderChart() {
     if (!currentProject) return;
-    
+
     const chart = document.getElementById('ganttChart');
     const DAY_WIDTH = 40;
-    
+
     let maxTaskEndDay = 0;
     currentTasks.forEach(task => {
         const end = task.start + task.duration;
@@ -327,7 +473,7 @@ function renderChart() {
     });
 
     const totalDaysToRender = Math.max(
-        (currentProject.work === 'ME' ? totalDaysME : totalDaysSipil), 
+        (currentProject.work === 'ME' ? totalDaysME : totalDaysSipil),
         maxTaskEndDay + 10
     );
 
@@ -338,14 +484,14 @@ function renderChart() {
     let html = '<div class="chart-header">';
     html += '<div class="task-column">Tahapan</div>';
     html += `<div class="timeline-column" style="width: ${totalChartWidth}px;">`;
-    
+
     for (let i = 0; i < totalDaysToRender; i++) {
         const currentDate = new Date(projectStartDate);
         currentDate.setDate(projectStartDate.getDate() + i);
 
         const dateNum = currentDate.getDate();
         const monthName = currentDate.toLocaleDateString('id-ID', { month: 'short' });
-        
+
         const isSunday = currentDate.getDay() === 0;
         const bgStyle = isSunday ? 'background-color: #ffe3e3;' : '';
 
@@ -357,27 +503,27 @@ function renderChart() {
         `;
     }
     html += '</div></div>';
-    
+
     // RENDER BODY (TASKS)
     html += '<div class="chart-body">';
-    
+
     const originalTemplate = currentProject.work === 'ME' ? taskTemplateME : taskTemplateSipil;
-    
+
     currentTasks.forEach(task => {
         const taskRealStart = new Date(projectStartDate);
         taskRealStart.setDate(projectStartDate.getDate() + (task.start - 1));
-        
+
         const taskRealEnd = new Date(taskRealStart);
         taskRealEnd.setDate(taskRealStart.getDate() + task.duration);
 
         const leftPos = (task.start - 1) * DAY_WIDTH;
         const widthPos = task.duration * DAY_WIDTH;
-        
+
         const originalTask = originalTemplate.find(t => t.id === task.id);
         const isDelayed = originalTask ? task.start > originalTask.start : false;
-        
+
         let barClass = isDelayed ? 'delayed' : 'on-time';
-        
+
         const tooltipText = `${task.name}\n${formatDateID(taskRealStart)} s/d ${formatDateID(taskRealEnd)}\n(${task.duration} hari)`;
 
         html += '<div class="task-row">';
@@ -393,11 +539,11 @@ function renderChart() {
         </div>`;
         html += '</div></div>';
     });
-    
+
     html += '</div>';
-    
+
     chart.innerHTML = html;
-    
+
     setTimeout(() => {
         drawDependencyLines();
     }, 50);
@@ -414,7 +560,7 @@ function drawDependencyLines() {
     svg.classList.add('dependency-svg');
     svg.style.width = `${chartBody.scrollWidth}px`;
     svg.style.height = `${chartBody.scrollHeight}px`;
-    
+
     chartBody.appendChild(svg);
 
     const bodyRect = chartBody.getBoundingClientRect();
@@ -428,16 +574,16 @@ function drawDependencyLines() {
                 if (fromBar && toBar) {
                     const fromRect = fromBar.getBoundingClientRect();
                     const toRect = toBar.getBoundingClientRect();
-                    
+
                     const x1 = (fromRect.right - bodyRect.left) + chartBody.scrollLeft;
                     const y1 = (fromRect.top + fromRect.height / 2 - bodyRect.top) + chartBody.scrollTop;
-                    
+
                     const x2 = (toRect.left - bodyRect.left) + chartBody.scrollLeft;
                     const y2 = (toRect.top + toRect.height / 2 - bodyRect.top) + chartBody.scrollTop;
-                    
+
                     const deltaX = x2 - x1;
                     const curveAmount = Math.max(Math.abs(deltaX / 2), 40);
-                    
+
                     const d = `M ${x1} ${y1} C ${x1 + curveAmount} ${y1}, ${x2 - curveAmount} ${y2}, ${x2} ${y2}`;
 
                     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -459,20 +605,20 @@ function applyDelay() {
         alert('Pilih No. Ulok terlebih dahulu!');
         return;
     }
-    
+
     const taskId = document.getElementById('taskSelect').value;
     const delayDays = parseInt(document.getElementById('delayInput').value) || 0;
-    
+
     if (!taskId) {
         alert('Pilih tahap terlebih dahulu!');
         return;
     }
-    
+
     const taskIndex = currentTasks.findIndex(t => t.id == taskId);
     if (taskIndex === -1) return;
-    
+
     currentTasks[taskIndex].start += delayDays;
-    
+
     function updateDependentTasks(taskId, delay) {
         currentTasks.forEach(task => {
             if (task.dependencies.includes(parseInt(taskId))) {
@@ -481,7 +627,7 @@ function applyDelay() {
             }
         });
     }
-    
+
     updateDependentTasks(taskId, delayDays);
     renderChart();
     updateStats();
@@ -489,13 +635,13 @@ function applyDelay() {
 
 function resetChart() {
     if (!currentProject) return;
-    
+
     if (currentProject.work === 'ME') {
         projectTasks[currentProject.ulok] = JSON.parse(JSON.stringify(taskTemplateME));
     } else {
         projectTasks[currentProject.ulok] = JSON.parse(JSON.stringify(taskTemplateSipil));
     }
-    
+
     currentTasks = projectTasks[currentProject.ulok];
     document.getElementById('delayInput').value = 0;
     document.getElementById('taskSelect').value = '';
@@ -505,12 +651,12 @@ function resetChart() {
 
 function updateStats() {
     if (!currentProject) return;
-    
+
     const originalTemplate = currentProject.work === 'ME' ? taskTemplateME : taskTemplateSipil;
-    
+
     let totalDelay = 0;
     let delayedTasks = 0;
-    
+
     currentTasks.forEach((task) => {
         const originalTask = originalTemplate.find(t => t.id === task.id);
         if (originalTask) {
@@ -521,9 +667,9 @@ function updateStats() {
             }
         }
     });
-    
+
     const maxEnd = Math.max(...currentTasks.map(t => t.start + t.duration));
-    
+
     const stats = document.getElementById('stats');
     stats.innerHTML = `
         <div class="stat-card">
@@ -549,7 +695,7 @@ function updateStats() {
 function exportToExcel() {
     if (!currentProject) return;
     const startDate = new Date(currentProject.startDate);
-    
+
     const data = [
         ["Laporan Jadwal Proyek"],
         ["No. Ulok", currentProject.ulok],

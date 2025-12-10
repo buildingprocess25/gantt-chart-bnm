@@ -1,5 +1,9 @@
 const APPS_SCRIPT_POST_URL = "https://script.google.com/macros/s/AKfycbzPubDTa7E2gT5HeVLv9edAcn1xaTiT3J4BtAVYqaqiFAvFtp1qovTXpqpm-VuNOxQJ/exec";
 const PYTHON_API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api/spk_data";
+// GANTI URL INI SESUAI ENDPOINT BACKEND ANDA
+// Contoh alternatif jika berbeda:
+// const GANTT_DATA_URL = "https://gantt-chart-bnm.onrender.com/api/spk_detail";
+// const GANTT_DATA_URL = "https://gantt-chart-bnm.onrender.com/api/spk";
 const GANTT_DATA_URL = "https://gantt-chart-bnm.onrender.com/api/get_gantt_data";
 
 let projects = [];
@@ -198,56 +202,121 @@ async function fetchProjectDetail(ulok) {
         // Ambil workType dari currentProject
         const workType = currentProject.work;
         
-        // Fetch detail dari API dengan parameter ulok dan lingkup
-        const url = `${GANTT_DATA_URL}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(workType)}`;
-        console.log("Fetching detail from:", url);
+        // SOLUSI 1: Coba dengan format URL berbeda
+        // Coba dulu tanpa encoding
+        let url = `${GANTT_DATA_URL}?ulok=${ulok}&lingkup=${workType}`;
+        console.log("Fetching detail from (attempt 1):", url);
         
-        const response = await fetch(url);
+        let response = await fetch(url);
         
+        // SOLUSI 2: Jika gagal, coba dengan All SPK endpoint lalu filter manual
         if (!response.ok) {
-            console.warn("Detail API tidak tersedia, menggunakan data default");
-            currentProject.contractor = "Tidak Tersedia";
+            console.warn(`API detail gagal (${response.status}), mencoba endpoint alternatif...`);
+            
+            // Fetch semua data SPK
+            const allSpkUrl = PYTHON_API_BASE_URL;
+            console.log("Fetching from alternative endpoint:", allSpkUrl);
+            
+            response = await fetch(allSpkUrl);
+            
+            if (!response.ok) {
+                console.error("Semua endpoint gagal");
+                currentProject.contractor = "API Tidak Tersedia";
+                return;
+            }
+            
+            const allData = await response.json();
+            console.log("All SPK Data:", allData);
+            
+            // Filter data berdasarkan ulok yang cocok
+            const matchedProject = allData.find(item => item.value === ulok);
+            
+            if (matchedProject && matchedProject.contractor) {
+                // Jika data kontraktor ada di list endpoint
+                currentProject.contractor = matchedProject.contractor;
+                console.log("Contractor found in list:", matchedProject.contractor);
+            } else {
+                // SOLUSI 3: Gunakan endpoint detail dengan variasi parameter
+                console.log("Trying alternative parameter format...");
+                
+                // Coba beberapa variasi URL
+                const urlVariations = [
+                    `${GANTT_DATA_URL}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(workType)}`,
+                    `${GANTT_DATA_URL}/${ulok}?lingkup=${workType}`,
+                    `${GANTT_DATA_URL}/${ulok}`,
+                    `https://gantt-chart-bnm.onrender.com/api/spk/${ulok}`
+                ];
+                
+                let detailFound = false;
+                
+                for (const testUrl of urlVariations) {
+                    console.log("Testing URL:", testUrl);
+                    try {
+                        const testResponse = await fetch(testUrl);
+                        if (testResponse.ok) {
+                            const testData = await testResponse.json();
+                            if (testData.status === "success" && testData.spk) {
+                                console.log("Success with URL:", testUrl);
+                                await processSpkData(testData);
+                                detailFound = true;
+                                break;
+                            }
+                        }
+                    } catch (e) {
+                        console.log("URL failed:", testUrl);
+                    }
+                }
+                
+                if (!detailFound) {
+                    currentProject.contractor = "Data Tidak Ditemukan";
+                }
+            }
             return;
         }
         
+        // Jika response OK dari attempt pertama
         const data = await response.json();
         console.log("API Response:", data);
         
-        if (data.status === "success" && data.spk) {
-            // Update data proyek dengan informasi dari API
-            currentProject.name = data.spk.Proyek || currentProject.name;
-            currentProject.store = data.spk.Nama_Toko || currentProject.store;
-            
-            // Debug: Log nilai kontraktor
-            console.log("Nama Kontraktor dari API:", data.spk['Nama Kontraktor']);
-            
-            // Update contractor dengan pengecekan yang lebih ketat
-            if (data.spk['Nama Kontraktor']) {
-                currentProject.contractor = data.spk['Nama Kontraktor'];
-            } else {
-                currentProject.contractor = "Belum Ditentukan";
-            }
-            
-            currentProject.startDate = data.spk['Waktu Mulai'] || currentProject.startDate;
-            currentProject.durasi = data.spk.Durasi || null;
-            currentProject.alamat = data.spk.Alamat || "";
-            currentProject.status = data.spk.Status || "";
-            
-            console.log("Current Project after update:", currentProject);
-            
-            // Jika ada data RAB/tahapan, bisa digunakan untuk meng-update nama task
-            if (data.rab && data.rab.length > 0) {
-                console.log("Data RAB tersedia:", data.rab);
-                // TODO: Mapping RAB ke tasks jika diperlukan
-            }
-        } else {
-            console.warn("Data SPK tidak valid");
-            currentProject.contractor = "Data Tidak Valid";
-        }
+        await processSpkData(data);
         
     } catch (error) {
         console.error("Error fetching project detail:", error);
-        currentProject.contractor = "Error Memuat Data";
+        currentProject.contractor = "Error: " + error.message;
+    }
+}
+
+// Fungsi helper untuk memproses data SPK
+async function processSpkData(data) {
+    if (data.status === "success" && data.spk) {
+        // Update data proyek dengan informasi dari API
+        currentProject.name = data.spk.Proyek || currentProject.name;
+        currentProject.store = data.spk.Nama_Toko || currentProject.store;
+        
+        // Debug: Log nilai kontraktor
+        console.log("Nama Kontraktor dari API:", data.spk['Nama Kontraktor']);
+        
+        // Update contractor dengan pengecekan yang lebih ketat
+        if (data.spk['Nama Kontraktor']) {
+            currentProject.contractor = data.spk['Nama Kontraktor'];
+        } else {
+            currentProject.contractor = "Belum Ditentukan";
+        }
+        
+        currentProject.startDate = data.spk['Waktu Mulai'] || currentProject.startDate;
+        currentProject.durasi = data.spk.Durasi || null;
+        currentProject.alamat = data.spk.Alamat || "";
+        currentProject.status = data.spk.Status || "";
+        
+        console.log("✅ Current Project after update:", currentProject);
+        
+        // Jika ada data RAB/tahapan
+        if (data.rab && data.rab.length > 0) {
+            console.log("Data RAB tersedia:", data.rab);
+        }
+    } else {
+        console.warn("Data SPK tidak valid");
+        currentProject.contractor = "Data Tidak Valid";
     }
 }
 

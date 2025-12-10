@@ -82,6 +82,22 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function parseDateValue(raw) {
+    if (!raw) return null;
+    const iso = new Date(raw);
+    if (!Number.isNaN(iso.getTime())) return iso;
+
+    // Try DD/MM/YYYY or DD-MM-YYYY
+    const match = String(raw).trim().match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+    if (match) {
+        const [_, d, m, y] = match;
+        const year = y.length === 2 ? `20${y}` : y;
+        const parsed = new Date(`${year}-${m}-${d}`);
+        if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+    return null;
+}
+
 function showLoadingMessage() {
     const chart = document.getElementById('ganttChart');
     chart.innerHTML = `
@@ -258,6 +274,22 @@ async function fetchGanttDataForSelection(selectedValue) {
         }
 
         ganttApiData = data;
+
+        // Update project info with SPK data if available
+        if (currentProject && data?.spk) {
+            updateProjectFromSpk(data.spk);
+        }
+
+        // Rebuild tasks from RAB categories when available
+        if (currentProject && Array.isArray(data?.rab) && data.rab.length) {
+            const generatedTasks = buildTasksFromRabCategories(data.rab);
+            projectTasks[currentProject.ulok] = generatedTasks;
+            currentTasks = generatedTasks;
+        }
+
+        renderProjectInfo();
+        renderChart();
+        updateStats();
     } catch (error) {
         console.error('❌ Error fetching Gantt data:', error);
         ganttApiData = null;
@@ -430,6 +462,15 @@ function renderProjectInfo() {
         `;
     }
 
+    if (currentProject.status) {
+        html += `
+        <div class="project-detail">
+            <div class="project-label">Status</div>
+            <div class="project-value">${currentProject.status}</div>
+        </div>
+        `;
+    }
+
     if (currentProject.regional) {
         html += `
         <div class="project-detail">
@@ -458,6 +499,58 @@ function renderProjectInfo() {
     }
 
     info.innerHTML = html;
+}
+
+// ==================== API DATA HELPERS ====================
+function updateProjectFromSpk(spkData) {
+    if (!spkData || !currentProject) return;
+
+    const getFirstNonEmpty = (keys) => {
+        for (const key of keys) {
+            const val = spkData[key];
+            if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+        }
+        return undefined;
+    };
+
+    const contractor = getFirstNonEmpty(['Kontraktor', 'contractor', 'kontraktor']);
+    if (contractor) currentProject.contractor = contractor;
+
+    const startRaw = getFirstNonEmpty(['Tanggal Mulai', 'tanggal_mulai', 'Start Date']);
+    const parsedStart = parseDateValue(startRaw);
+    if (parsedStart) currentProject.startDate = parsedStart.toISOString().split('T')[0];
+
+    const durasiRaw = getFirstNonEmpty(['Durasi', 'durasi']);
+    const durasiNum = durasiRaw ? parseInt(durasiRaw, 10) : null;
+    if (!Number.isNaN(durasiNum) && durasiNum > 0) currentProject.durasi = durasiNum;
+
+    const statusVal = getFirstNonEmpty(['Status', 'status']);
+    if (statusVal) currentProject.status = statusVal;
+
+    const proyekVal = getFirstNonEmpty(['Proyek', 'Jenis Proyek']);
+    if (proyekVal) currentProject.projectType = proyekVal;
+
+    const storeVal = getFirstNonEmpty(['Nama Toko', 'Store', 'Nama_Toko']);
+    if (storeVal) currentProject.store = storeVal;
+}
+
+function buildTasksFromRabCategories(categories) {
+    const tasks = [];
+    let cursor = 1;
+    const defaultDuration = 5;
+
+    categories.forEach((cat, idx) => {
+        tasks.push({
+            id: idx + 1,
+            name: cat,
+            start: cursor,
+            duration: defaultDuration,
+            dependencies: idx === 0 ? [] : [idx],
+        });
+        cursor += defaultDuration;
+    });
+
+    return tasks.length ? tasks : currentTasks;
 }
 
 function renderChart() {

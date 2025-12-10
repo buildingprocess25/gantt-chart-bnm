@@ -300,6 +300,22 @@ class GoogleServiceProvider:
             print(f"Error getting Gantt data: {e}")
             return {"spk": None, "rab": []}
 
+    # get ulok by email pembuat
+    def get_ulok_by_email(self, email):
+        ulok_list = []
+        try:
+            worksheet = self.sheet.worksheet(config.APPROVED_DATA_SHEET_NAME)
+            records = worksheet.get_all_records()
+            for record in records:
+                if str(record.get('Email_Pembuat', '')).strip().lower() == email.strip().lower():
+                    ulok = str(record.get('Nomor Ulok', '')).strip()
+                    if ulok:
+                        ulok_list.append(ulok)
+            return sorted(list(set(ulok_list)))
+        except Exception as e:
+            print(f"Error saat mengambil ulok by email: {e}")
+            return []
+
     def get_user_info_by_cabang(self, cabang):
         pic_list, koordinator_info, manager_info = [], {}, {}
         try:

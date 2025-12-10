@@ -1,8 +1,8 @@
 // ==================== API CONFIGURATION ====================
 const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
-    spkList: `${API_BASE_URL}/spk_data`           // List semua SPK
-    // Detail akan diambil dari endpoint lain atau dari spk_data langsung
+    spkList: `${API_BASE_URL}/spk_data`,
+    spkDetail: (ulok) => `${API_BASE_URL}/spk/${ulok}`
 };
 
 let projects = [];
@@ -130,9 +130,11 @@ async function loadDataAndInit() {
                 name: projectName,
                 store: storeName,
                 work: workType,
-                contractor: "Belum Ditentukan", // Default
+                contractor: "Memuat...",
                 startDate: new Date().toISOString().split('T')[0],
-                durasi: null
+                durasi: null,
+                alamat: "",
+                status: ""
             };
         });
 
@@ -176,6 +178,13 @@ async function changeUlok() {
         return;
     }
     
+    // Show loading di project info
+    document.getElementById('projectInfo').innerHTML = `
+        <div style="text-align: center; padding: 20px; color: white;">
+            <span>⏳ Memuat detail proyek...</span>
+        </div>
+    `;
+    
     currentProject = projects.find(p => p.ulok === selectedUlok);
     
     // Fetch detail dari backend
@@ -202,58 +211,116 @@ async function changeUlok() {
 // ==================== FETCH PROJECT DETAIL ====================
 async function fetchProjectDetail(ulok) {
     try {
-        console.log("🔍 Attempting to fetch detail for:", ulok);
+        console.log("🔍 Fetching detail for:", ulok);
         
-        // SOLUSI: Karena endpoint detail tidak ada (404), 
-        // kita coba beberapa alternatif endpoint yang mungkin ada
+        const response = await fetch(ENDPOINTS.spkDetail(ulok));
         
-        const possibleEndpoints = [
-            `${API_BASE_URL}/spk/${ulok}`,
-            `${API_BASE_URL}/spk_detail?ulok=${ulok}`,
-            `${API_BASE_URL}/gantt/${ulok}`,
-        ];
+        if (!response.ok) {
+            console.warn(`⚠️ API returned ${response.status} for ${ulok}`);
+            console.log("💡 Menggunakan data default");
+            currentProject.contractor = "Belum Ditentukan";
+            return;
+        }
         
-        let detailFound = false;
+        const data = await response.json();
+        console.log("📦 Raw API Response:", data);
         
-        for (const endpoint of possibleEndpoints) {
-            try {
-                console.log("🔍 Trying endpoint:", endpoint);
-                const response = await fetch(endpoint);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log("✅ Success with endpoint:", endpoint);
-                    console.log("📦 Data received:", data);
-                    
-                    // Process data jika format sesuai
-                    if (data && (data.spk || data.data || data.Nama_Kontraktor)) {
-                        const spk = data.spk || data.data || data;
-                        
-                        currentProject.name = spk.Proyek || spk.nama_proyek || currentProject.name;
-                        currentProject.store = spk.Nama_Toko || spk.nama_toko || currentProject.store;
-                        currentProject.contractor = spk['Nama Kontraktor'] || spk.nama_kontraktor || spk.kontraktor || "Belum Ditentukan";
-                        currentProject.startDate = spk['Waktu Mulai'] || spk.waktu_mulai || spk.start_date || currentProject.startDate;
-                        currentProject.durasi = spk.Durasi || spk.durasi || null;
-                        currentProject.alamat = spk.Alamat || spk.alamat || "";
-                        currentProject.status = spk.Status || spk.status || "";
-                        
-                        console.log("✅ Project updated:", currentProject);
-                        detailFound = true;
-                        break;
-                    }
+        // Coba berbagai kemungkinan struktur response
+        let projectData = null;
+        
+        // Kemungkinan 1: { data: {...} }
+        if (data.data) {
+            projectData = data.data;
+        }
+        // Kemungkinan 2: { spk: {...} }
+        else if (data.spk) {
+            projectData = data.spk;
+        }
+        // Kemungkinan 3: Direct object
+        else if (data.Nama_Kontraktor || data.nama_kontraktor || data.contractor) {
+            projectData = data;
+        }
+        // Kemungkinan 4: Array dengan 1 item
+        else if (Array.isArray(data) && data.length > 0) {
+            projectData = data[0];
+        }
+        
+        if (!projectData) {
+            console.warn("⚠️ Struktur data tidak dikenali");
+            console.log("💡 Menggunakan data default");
+            currentProject.contractor = "Belum Ditentukan";
+            return;
+        }
+        
+        console.log("✅ Parsed project data:", projectData);
+        
+        // Helper function untuk mengambil value dengan berbagai kemungkinan key
+        const getValue = (obj, ...keys) => {
+            for (const key of keys) {
+                if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
+                    return obj[key];
                 }
-            } catch (err) {
-                console.log("❌ Endpoint failed:", endpoint, err.message);
+            }
+            return null;
+        };
+        
+        // Update project dengan data dari API
+        currentProject.name = getValue(projectData, 
+            'Proyek', 'proyek', 'nama_proyek', 'Nama_Proyek', 'project_name', 'projectName'
+        ) || currentProject.name;
+        
+        currentProject.store = getValue(projectData,
+            'Nama_Toko', 'nama_toko', 'NamaToko', 'store_name', 'storeName', 'toko'
+        ) || currentProject.store;
+        
+        currentProject.contractor = getValue(projectData,
+            'Nama_Kontraktor', 'Nama Kontraktor', 'nama_kontraktor', 'NamaKontraktor', 
+            'contractor', 'kontraktor', 'Kontraktor'
+        ) || "Belum Ditentukan";
+        
+        const rawStartDate = getValue(projectData,
+            'Waktu_Mulai', 'Waktu Mulai', 'waktu_mulai', 'WaktuMulai',
+            'start_date', 'startDate', 'tanggal_mulai', 'TanggalMulai'
+        );
+        
+        if (rawStartDate) {
+            // Parse berbagai format tanggal
+            const date = new Date(rawStartDate);
+            if (!isNaN(date)) {
+                currentProject.startDate = date.toISOString().split('T')[0];
             }
         }
         
-        if (!detailFound) {
-            console.warn("⚠️ No detail endpoint available, using default data");
-            console.log("💡 Tip: Pastikan backend memiliki endpoint untuk detail SPK");
+        const rawDurasi = getValue(projectData,
+            'Durasi', 'durasi', 'duration', 'Duration'
+        );
+        
+        if (rawDurasi !== null) {
+            currentProject.durasi = parseInt(rawDurasi) || null;
         }
+        
+        currentProject.alamat = getValue(projectData,
+            'Alamat', 'alamat', 'address', 'Address', 'lokasi', 'Lokasi'
+        ) || "";
+        
+        currentProject.status = getValue(projectData,
+            'Status', 'status', 'project_status', 'projectStatus'
+        ) || "";
+        
+        currentProject.regional = getValue(projectData,
+            'Regional', 'regional', 'region', 'Region'
+        ) || "";
+        
+        currentProject.area = getValue(projectData,
+            'Area', 'area'
+        ) || "";
+        
+        console.log("✅ Project updated:", currentProject);
         
     } catch (error) {
         console.error("❌ Error in fetchProjectDetail:", error);
+        console.log("💡 Menggunakan data default");
+        currentProject.contractor = "Belum Ditentukan";
     }
 }
 
@@ -272,7 +339,7 @@ function renderProjectInfo() {
         tglSelesai = formatDateID(endDate);
     }
 
-    info.innerHTML = `
+    let html = `
         <div class="project-detail">
             <div class="project-label">No. Ulok</div>
             <div class="project-value">${currentProject.ulok}</div>
@@ -297,7 +364,11 @@ function renderProjectInfo() {
             <div class="project-label">Tanggal Mulai</div>
             <div class="project-value">${tglMulai}</div>
         </div>
-        ${currentProject.durasi ? `
+    `;
+    
+    // Tambahkan informasi opsional jika ada
+    if (currentProject.durasi) {
+        html += `
         <div class="project-detail">
             <div class="project-label">Durasi</div>
             <div class="project-value">${currentProject.durasi} hari</div>
@@ -306,8 +377,46 @@ function renderProjectInfo() {
             <div class="project-label">Target Selesai</div>
             <div class="project-value">${tglSelesai}</div>
         </div>
-        ` : ''}
-    `;
+        `;
+    }
+    
+    if (currentProject.status) {
+        html += `
+        <div class="project-detail">
+            <div class="project-label">Status</div>
+            <div class="project-value">${currentProject.status}</div>
+        </div>
+        `;
+    }
+    
+    if (currentProject.regional) {
+        html += `
+        <div class="project-detail">
+            <div class="project-label">Regional</div>
+            <div class="project-value">${currentProject.regional}</div>
+        </div>
+        `;
+    }
+    
+    if (currentProject.area) {
+        html += `
+        <div class="project-detail">
+            <div class="project-label">Area</div>
+            <div class="project-value">${currentProject.area}</div>
+        </div>
+        `;
+    }
+    
+    if (currentProject.alamat) {
+        html += `
+        <div class="project-detail">
+            <div class="project-label">Alamat</div>
+            <div class="project-value">${currentProject.alamat}</div>
+        </div>
+        `;
+    }
+    
+    info.innerHTML = html;
 }
 
 function renderChart() {

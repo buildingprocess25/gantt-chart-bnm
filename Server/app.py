@@ -1211,6 +1211,7 @@ def get_kontraktor():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+# --- ENDPOINTS UNTUK SPK ---
 @app.route('/api/spk_data', methods=['GET'])
 def get_all_spk_data_list():
     try:
@@ -1247,6 +1248,32 @@ def get_gantt_data():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# get ulok by email 
+@app.route('/api/get_ulok_by_email', methods=['GET'])
+def get_ulok_by_email():
+    email = request.args.get('email')
+    if not email:
+        return jsonify({"error": "Parameter email kosong"}), 400
+
+    try:
+        ulok_list = google_provider.get_ulok_by_email(email)
+        return jsonify(ulok_list), 200
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+
+
+
+
+
+
+
+
+# --- ENDPOINTS UNTUK SPK ---
 
 @app.route('/api/get_spk_status', methods=['GET'])
 def get_spk_status():

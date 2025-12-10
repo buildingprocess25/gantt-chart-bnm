@@ -513,7 +513,7 @@ function updateProjectFromSpk(spkData) {
         return undefined;
     };
 
-    const contractor = getFirstNonEmpty(['Kontraktor', 'contractor', 'kontraktor']);
+    const contractor = getFirstNonEmpty(['Kontraktor', 'contractor', 'kontraktor', 'Nama Kontraktor']);
     if (contractor) currentProject.contractor = contractor;
 
     const startRaw = getFirstNonEmpty(['Tanggal Mulai', 'tanggal_mulai', 'Start Date']);

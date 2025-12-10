@@ -302,6 +302,10 @@ class GoogleServiceProvider:
 
     # get ulok by email pembuat
     def get_ulok_by_email(self, email):
+        """
+        Mengambil daftar unik Nomor Ulok beserta Proyek, Nama Toko, dan Lingkup Pekerjaan 
+        dari sheet RAB Form3.
+        """
         ulok_list = []
         try:
             worksheet = self.sheet.worksheet(config.APPROVED_DATA_SHEET_NAME)
@@ -309,11 +313,20 @@ class GoogleServiceProvider:
             for record in records:
                 if str(record.get('Email_Pembuat', '')).strip().lower() == email.strip().lower():
                     ulok = str(record.get('Nomor Ulok', '')).strip()
+                    proyek = str(record.get('Proyek', '')).strip()
+                    nama_toko = str(record.get('Nama_Toko', record.get('nama_toko', ''))).strip()
+                    lingkup = str(record.get('Lingkup_Pekerjaan', record.get('Lingkup Pekerjaan', ''))).strip()
                     if ulok:
-                        ulok_list.append(ulok)
-            return sorted(list(set(ulok_list)))
+                        label = f"{ulok} - {proyek} ({lingkup}) - {nama_toko}"
+                        ulok_list.append({
+                            "label": label,
+                            "value": ulok + "-" + lingkup,
+                        })
+            unique_ulok = {item['value']: item for item in reversed(ulok_list)}
+            sorted_ulok = sorted(unique_ulok.values(), key=lambda x: x['value'])
+            return sorted_ulok
         except Exception as e:
-            print(f"Error saat mengambil ulok by email: {e}")
+            print(f"Error saat mengambil daftar ulok by email: {e}")
             return []
 
     def get_user_info_by_cabang(self, cabang):

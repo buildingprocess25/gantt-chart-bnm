@@ -324,30 +324,68 @@ function renderApiData() {
         return;
     }
 
-    if (!ganttApiData) {
+    if (!ganttApiData && !currentProject) {
         container.innerHTML = `
             <div class="api-card">
-                <div class="api-card-title">Data Gantt</div>
-                <div class="api-row">Pilih No. Ulok untuk melihat data SPK & RAB.</div>
+                <div class="api-card-title">Input Pengerjaan Tahapan</div>
+                <div class="api-row">Pilih No. Ulok untuk menginput jadwal pengerjaan.</div>
             </div>
         `;
         return;
     }
 
-    const spkData = ganttApiData.spk || {};
-    const rabCategories = Array.isArray(ganttApiData.rab) ? ganttApiData.rab : [];
-    const hasSpk = Object.keys(spkData).length > 0;
+    if (!currentProject || !currentTasks.length) return;
 
-    const rabContent = rabCategories.length
-        ? rabCategories.map(cat => `<span class="api-badge">${escapeHtml(cat)}</span>`).join('')
-        : '<div class="api-row">Kategori RAB tidak ditemukan.</div>';
+    // Render form input untuk setiap tahapan
+    let html = '<div class="api-card task-input-card">';
+    html += '<div class="api-card-title">Input Pengerjaan Tahapan</div>';
+    html += '<div class="task-input-container">';
 
-    container.innerHTML = `
-        <div class="api-card">
-            <div class="api-card-title">Kategori RAB (Approved)</div>
-            <div class="api-badge-group">${rabContent}</div>
+    currentTasks.forEach((task, index) => {
+        const taskData = task.inputData || { startDay: task.start, endDay: task.start + task.duration - 1 };
+        
+        html += `
+            <div class="task-input-row">
+                <div class="task-input-label">${escapeHtml(task.name)}</div>
+                <div class="task-input-fields">
+                    <div class="input-group">
+                        <label>H</label>
+                        <input type="number" 
+                            class="task-day-input" 
+                            id="task-start-${task.id}" 
+                            value="${taskData.startDay}" 
+                            min="1" 
+                        placeholder="1">
+                    </div>
+                    <span class="input-separator">sampai/dan</span>
+                    <div class="input-group">
+                        <label>H</label>
+                        <input type="number" 
+                            class="task-day-input" 
+                            id="task-end-${task.id}" 
+                            value="${taskData.endDay}" 
+                            min="1" 
+                        placeholder="10">
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    html += `
+        <div class="task-input-actions">
+            <button class="btn-apply-schedule" onclick="applyTaskSchedule()">
+                Terapkan Jadwal
+            </button>
+            <button class="btn-reset-schedule" onclick="resetTaskSchedule()">
+                Reset
+            </button>
         </div>
     `;
+    html += '</div>';
+
+    container.innerHTML = html;
 }
 
 // ==================== CHANGE ULOK (SELECT PROJECT) ====================

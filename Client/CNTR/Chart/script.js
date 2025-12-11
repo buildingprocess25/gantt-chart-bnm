@@ -338,17 +338,6 @@ function renderApiData() {
     const rabCategories = Array.isArray(ganttApiData.rab) ? ganttApiData.rab : [];
     const hasSpk = Object.keys(spkData).length > 0;
 
-    const spkRows = hasSpk
-        ? Object.entries(spkData)
-            .map(([key, val]) => `
-                <div class="api-row">
-                    <span class="api-key">${escapeHtml(key)}</span>
-                    <span class="api-value">${escapeHtml(val)}</span>
-                </div>
-            `)
-            .join('')
-        : '<div class="api-row">Data SPK tidak ditemukan.</div>';
-
     const rabContent = rabCategories.length
         ? rabCategories.map(cat => `<span class="api-badge">${escapeHtml(cat)}</span>`).join('')
         : '<div class="api-row">Kategori RAB tidak ditemukan.</div>';

@@ -281,13 +281,16 @@ async function fetchGanttDataForSelection(selectedValue) {
             updateProjectFromSpk(data.spk);
         }
 
-        if (currentProject && Array.isArray(data?.rab) && data.rab.length) {
-            const generatedTasks = buildTasksFromRabCategories(data.rab);
-            projectTasks[currentProject.ulok] = generatedTasks;
-            currentTasks = generatedTasks;
-        }
+        // JANGAN override tasks dengan RAB categories
+        // Biarkan tasks menggunakan template default
+        // if (currentProject && Array.isArray(data?.rab) && data.rab.length) {
+        //     const generatedTasks = buildTasksFromRabCategories(data.rab);
+        //     projectTasks[currentProject.ulok] = generatedTasks;
+        //     currentTasks = generatedTasks;
+        // }
 
         renderProjectInfo();
+        renderApiData(); // Re-render form dengan tasks yang benar
         if (hasUserInput) {
             renderChart();
         }

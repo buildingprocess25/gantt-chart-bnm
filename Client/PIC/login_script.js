@@ -70,7 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const userRole = (result.role || "").toUpperCase();
 
-        // Only allow BRANCH MANAGER SUPPORT to access the Gantt Chart
+        // Only allow PIC to access the Gantt Chart
         if (userRole == "KONTRAKTOR") {
           loginMessage.textContent =
             "Akses ditolak. Halaman Gantt Chart ini untuk PIC.";
@@ -88,7 +88,7 @@ document.addEventListener("DOMContentLoaded", () => {
         sessionStorage.setItem("userRole", userRole);
 
         setTimeout(() => {
-          window.location.href = "/Chart/index.html";
+          window.location.href = "/PIC/Chart/index.html";
         }, 900);
       } else {
         if (result.message === "Invalid credentials") {

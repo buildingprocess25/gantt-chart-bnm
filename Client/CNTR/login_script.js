@@ -88,7 +88,7 @@ document.addEventListener("DOMContentLoaded", () => {
         sessionStorage.setItem("userRole", userRole);
 
         setTimeout(() => {
-          window.location.href = "/Chart/index.html";
+          window.location.href = "/CNTR/Chart/index.html";
         }, 900);
       } else {
         if (result.message === "Invalid credentials") {

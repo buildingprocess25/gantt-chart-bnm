@@ -462,15 +462,6 @@ function renderProjectInfo() {
         `;
     }
 
-    if (currentProject.status) {
-        html += `
-        <div class="project-detail">
-            <div class="project-label">Status</div>
-            <div class="project-value">${currentProject.status}</div>
-        </div>
-        `;
-    }
-
     if (currentProject.regional) {
         html += `
         <div class="project-detail">

@@ -71,9 +71,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const userRole = (result.role || "").toUpperCase();
 
         // Only allow BRANCH MANAGER SUPPORT to access the Gantt Chart
-        if (userRole !== "BRANCH BUILDING SUPPORT") {
+        if (userRole == "KONTRAKTOR") {
           loginMessage.textContent =
-            "Akses ditolak. Halaman Gantt Chart hanya untuk BRANCH BUILDING SUPPORT.";
+            "Akses ditolak. Halaman Gantt Chart ini untuk PIC.";
           loginMessage.className = "login-message error";
           return; // Stay on login page
         }

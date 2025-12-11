@@ -375,8 +375,6 @@ async function changeUlok() {
         return;
     }
 
-    currentProject = projects.find(p => p.ulok === selectedUlok);
-    currentTasks = projectTasks[selectedUlok];
     fetchGanttDataForSelection(selectedUlok);
 
     // Update task select dropdown

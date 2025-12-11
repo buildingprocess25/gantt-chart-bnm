@@ -11,33 +11,32 @@ let projectTasks = {};
 let ganttApiData = null;
 let ganttApiError = null;
 let isLoadingGanttData = false;
-let hasUserInput = false; // Track apakah user sudah input jadwal
 
 // ==================== TASK TEMPLATES ====================
 const taskTemplateME = [
-    { id: 1, name: 'Instalasi', start: 0, duration: 0, dependencies: [] },
-    { id: 2, name: 'Fixture', start: 0, duration: 0, dependencies: [1] },
-    { id: 3, name: 'Pekerjaan Tambahan', start: 0, duration: 0, dependencies: [1] },
-    { id: 4, name: 'Pekerjaan SBO', start: 0, duration: 0, dependencies: [2, 3] },
+    { id: 1, name: 'Instalasi', start: 1, duration: 10, dependencies: [] },
+    { id: 2, name: 'Fixture', start: 8, duration: 15, dependencies: [1] },
+    { id: 3, name: 'Pekerjaan Tambahan', start: 20, duration: 5, dependencies: [1] },
+    { id: 4, name: 'Pekerjaan SBO', start: 25, duration: 12, dependencies: [2, 3] },
 ];
 
 const taskTemplateSipil = [
-    { id: 1, name: 'Pekerjaan Persiapan', start: 0, duration: 0, dependencies: [] },
-    { id: 2, name: 'Pekerjaan Bobokan/Bongkaran', start: 0, duration: 0, dependencies: [1] },
-    { id: 3, name: 'Pekerjaan Tanah', start: 0, duration: 0, dependencies: [2] },
-    { id: 4, name: 'Pekerjaan Pondasi & Beton', start: 0, duration: 0, dependencies: [3] },
-    { id: 5, name: 'Pekerjaan Pasangan', start: 0, duration: 0, dependencies: [4] },
-    { id: 6, name: 'Pekerjaan Besi', start: 0, duration: 0, dependencies: [5] },
-    { id: 7, name: 'Pekerjaan Keramik', start: 0, duration: 0, dependencies: [6] },
-    { id: 8, name: 'Pekerjaan Plumbing', start: 0, duration: 0, dependencies: [7] },
-    { id: 9, name: 'Pekerjaan Sanitary & Acecories', start: 0, duration: 0, dependencies: [8] },
-    { id: 10, name: 'Pekerjaan Janitor', start: 0, duration: 0, dependencies: [9] },
-    { id: 11, name: 'Pekerjaan Atap', start: 0, duration: 0, dependencies: [10] },
-    { id: 12, name: 'Pekerjaan Kusen, Pintu, dan Kaca', start: 0, duration: 0, dependencies: [11] },
-    { id: 13, name: 'Pekerjaan Finishing', start: 0, duration: 0, dependencies: [10] },
-    { id: 14, name: 'Pekerjaan Beanspot', start: 0, duration: 0, dependencies: [13] },
-    { id: 15, name: 'Pekerjaan Tambahan', start: 0, duration: 0, dependencies: [13] },
-    { id: 16, name: 'Pekerjaan SBO', start: 0, duration: 0, dependencies: [14, 15] },
+    { id: 1, name: 'Pekerjaan Persiapan', start: 1, duration: 7, dependencies: [] },
+    { id: 2, name: 'Pekerjaan Bobokan/Bongkaran', start: 8, duration: 12, dependencies: [1] },
+    { id: 3, name: 'Pekerjaan Tanah', start: 15, duration: 20, dependencies: [2] },
+    { id: 4, name: 'Pekerjaan Pondasi & Beton', start: 35, duration: 8, dependencies: [3] },
+    { id: 5, name: 'Pekerjaan Pasangan', start: 43, duration: 10, dependencies: [4] },
+    { id: 6, name: 'Pekerjaan Besi', start: 53, duration: 20, dependencies: [5] },
+    { id: 7, name: 'Pekerjaan Keramik', start: 73, duration: 8, dependencies: [6] },
+    { id: 8, name: 'Pekerjaan Plumbing', start: 81, duration: 25, dependencies: [7] },
+    { id: 9, name: 'Pekerjaan Sanitary & Acecories', start: 106, duration: 10, dependencies: [8] },
+    { id: 10, name: 'Pekerjaan Janitor', start: 116, duration: 20, dependencies: [9] },
+    { id: 11, name: 'Pekerjaan Atap', start: 136, duration: 12, dependencies: [10] },
+    { id: 12, name: 'Pekerjaan Kusen, Pintu, dan Kaca', start: 148, duration: 10, dependencies: [11] },
+    { id: 13, name: 'Pekerjaan Finishing', start: 136, duration: 18, dependencies: [10] },
+    { id: 14, name: 'Pekerjaan Beanspot', start: 154, duration: 8, dependencies: [13] },
+    { id: 15, name: 'Pekerjaan Tambahan', start: 162, duration: 12, dependencies: [13] },
+    { id: 16, name: 'Pekerjaan SBO', start: 174, duration: 10, dependencies: [14, 15] },
 ];
 
 let currentTasks = [];
@@ -45,15 +44,134 @@ const totalDaysME = 100;
 const totalDaysSipil = 205;
 
 // ==================== INITIALIZATION ====================
-document.getElementById('logout-button-form').addEventListener('click', () => {
-    sessionStorage.clear();
-    window.location.href = 'https://gantt-chart-bnm.vercel.app';
+document.addEventListener('DOMContentLoaded', function() {
+    const logoutBtn = document.getElementById('logout-button-form');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            sessionStorage.clear();
+            window.location.href = 'https://gantt-chart-bnm.vercel.app';
+        });
+    }
 });
 
 // ==================== HELPER FUNCTIONS ====================
 function formatDateID(date) {
     const options = { day: 'numeric', month: 'short', year: 'numeric' };
     return date.toLocaleDateString('id-ID', options);
+}
+
+// Custom Confirm Dialog
+function customConfirm(message, title = 'Konfirmasi') {
+    return new Promise((resolve) => {
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            animation: fadeIn 0.2s ease;
+        `;
+
+        // Create modal
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        `;
+
+        // Modal content
+        modal.innerHTML = `
+            <style>
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes slideUp {
+                    from { transform: translateY(20px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+            </style>
+            <div style="text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 15px;">❓</div>
+                <h3 style="margin: 0 0 10px 0; color: #1a202c; font-size: 20px;">${title}</h3>
+                <p style="color: #4a5568; margin: 0 0 25px 0; white-space: pre-line; line-height: 1.6;">${message}</p>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="confirmNo" style="
+                        padding: 12px 30px;
+                        border: 2px solid #e53e3e;
+                        background: white;
+                        color: #e53e3e;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        font-size: 14px;
+                        transition: all 0.2s;
+                    ">Tidak</button>
+                    <button id="confirmYes" style="
+                        padding: 12px 30px;
+                        border: none;
+                        background: rgba(0, 128, 255, 0.9);
+                        color: white;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        font-size: 14px;
+                        transition: all 0.2s;
+                    ">Ya</button>
+                </div>
+            </div>
+        `;
+
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // Add hover effects
+        const btnYes = modal.querySelector('#confirmYes');
+        const btnNo = modal.querySelector('#confirmNo');
+
+        btnYes.onmouseover = () => btnYes.style.background = 'rgba(0, 128, 255, 1)';
+        btnYes.onmouseout = () => btnYes.style.background = 'rgba(0, 128, 255, 0.9)';
+        
+        btnNo.onmouseover = () => {
+            btnNo.style.background = '#e53e3e';
+            btnNo.style.color = 'white';
+        };
+        btnNo.onmouseout = () => {
+            btnNo.style.background = 'white';
+            btnNo.style.color = '#e53e3e';
+        };
+
+        // Event listeners
+        btnYes.onclick = () => {
+            document.body.removeChild(overlay);
+            resolve(true);
+        };
+
+        btnNo.onclick = () => {
+            document.body.removeChild(overlay);
+            resolve(false);
+        };
+
+        // Close on overlay click
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                document.body.removeChild(overlay);
+                resolve(false);
+            }
+        };
+    });
 }
 
 function extractUlokAndLingkup(value) {
@@ -88,6 +206,7 @@ function parseDateValue(raw) {
     const iso = new Date(raw);
     if (!Number.isNaN(iso.getTime())) return iso;
 
+    // Try DD/MM/YYYY or DD-MM-YYYY
     const match = String(raw).trim().match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
     if (match) {
         const [_, d, m, y] = match;
@@ -136,19 +255,7 @@ function showSelectProjectMessage() {
     document.getElementById('exportButtons').style.display = 'none';
     ganttApiData = null;
     ganttApiError = null;
-    hasUserInput = false;
     renderApiData();
-}
-
-function showPleaseInputMessage() {
-    const chart = document.getElementById('ganttChart');
-    chart.innerHTML = `
-        <div style="text-align: center; padding: 60px; color: #6c757d;">
-            <div style="font-size: 48px; margin-bottom: 20px;">⏱️</div>
-            <h2 style="margin-bottom: 15px;">Silakan Input Jadwal Pengerjaan</h2>
-            <p>Masukkan hari mulai dan selesai untuk setiap tahapan di form di atas, kemudian klik <strong>"Terapkan Jadwal"</strong>.</p>
-        </div>
-    `;
 }
 
 // ==================== PARSE PROJECT DATA ====================
@@ -281,19 +388,14 @@ async function fetchGanttDataForSelection(selectedValue) {
             updateProjectFromSpk(data.spk);
         }
 
-        // JANGAN override tasks dengan RAB categories
-        // Biarkan tasks menggunakan template default
-        // if (currentProject && Array.isArray(data?.rab) && data.rab.length) {
-        //     const generatedTasks = buildTasksFromRabCategories(data.rab);
-        //     projectTasks[currentProject.ulok] = generatedTasks;
-        //     currentTasks = generatedTasks;
-        // }
+        if (currentProject && Array.isArray(data?.rab) && data.rab.length) {
+            const generatedTasks = buildTasksFromRabCategories(data.rab);
+            projectTasks[currentProject.ulok] = generatedTasks;
+            currentTasks = generatedTasks;
+        }
 
         renderProjectInfo();
-        renderApiData(); // Re-render form dengan tasks yang benar
-        if (hasUserInput) {
-            renderChart();
-        }
+        renderChart();
         updateStats();
     } catch (error) {
         console.error('❌ Error fetching Gantt data:', error);
@@ -344,9 +446,8 @@ function renderApiData() {
     html += '<div class="api-card-title">Input Pengerjaan Tahapan</div>';
     html += '<div class="task-input-container">';
 
-    currentTasks.forEach((task) => {
-        // Jika sudah ada input data, gunakan itu. Jika belum, tampilkan 0
-        const taskData = task.inputData || { startDay: 0, endDay: 0 };
+    currentTasks.forEach((task, index) => {
+        const taskData = task.inputData || { startDay: task.start, endDay: task.start + task.duration - 1 };
         
         html += `
             <div class="task-input-row">
@@ -355,21 +456,21 @@ function renderApiData() {
                     <div class="input-group">
                         <label>H</label>
                         <input type="number" 
-                            class="task-day-input" 
-                            id="task-start-${task.id}" 
-                            value="${taskData.startDay}" 
-                            min="0" 
-                            placeholder="0">
+                               class="task-day-input" 
+                               id="task-start-${task.id}" 
+                               value="${taskData.startDay}" 
+                               min="1" 
+                               placeholder="1">
                     </div>
-                    <span class="input-separator">sampai</span>
+                    <span class="input-separator">sampai/dan</span>
                     <div class="input-group">
                         <label>H</label>
                         <input type="number" 
-                            class="task-day-input" 
-                            id="task-end-${task.id}" 
-                            value="${taskData.endDay}" 
-                            min="0" 
-                            placeholder="0">
+                               class="task-day-input" 
+                               id="task-end-${task.id}" 
+                               value="${taskData.endDay}" 
+                               min="1" 
+                               placeholder="10">
                     </div>
                 </div>
             </div>
@@ -404,16 +505,23 @@ async function changeUlok() {
 
     currentProject = projects.find(p => p.ulok === selectedUlok);
     currentTasks = projectTasks[selectedUlok];
-    hasUserInput = false;
     
-    fetchGanttDataForSelection(selectedUlok);
-
     console.log("✅ Selected project:", currentProject);
 
     renderProjectInfo();
-    showPleaseInputMessage();
-    updateStats();
-    document.getElementById('exportButtons').style.display = 'none';
+    renderApiData();
+    document.getElementById('exportButtons').style.display = 'flex';
+    
+    // Clear chart saat pertama pilih proyek
+    const chart = document.getElementById('ganttChart');
+    chart.innerHTML = `
+        <div style="text-align: center; padding: 60px; color: #6c757d;">
+            <h2 style="margin-bottom: 15px;">📝 Input Jadwal Pengerjaan</h2>
+            <p>Silakan input hari mulai dan hari selesai untuk setiap tahapan, kemudian klik "Terapkan Jadwal"</p>
+        </div>
+    `;
+    
+    fetchGanttDataForSelection(selectedUlok);
 }
 
 // ==================== RENDER FUNCTIONS ====================
@@ -545,8 +653,8 @@ function updateProjectFromSpk(spkData) {
 
 function buildTasksFromRabCategories(categories) {
     const tasks = [];
-    let cursor = 0;
-    const defaultDuration = 0;
+    let cursor = 1;
+    const defaultDuration = 5;
 
     categories.forEach((cat, idx) => {
         tasks.push({
@@ -556,6 +664,7 @@ function buildTasksFromRabCategories(categories) {
             duration: defaultDuration,
             dependencies: idx === 0 ? [] : [idx],
         });
+        cursor += defaultDuration;
     });
 
     return tasks.length ? tasks : currentTasks;
@@ -563,12 +672,6 @@ function buildTasksFromRabCategories(categories) {
 
 function renderChart() {
     if (!currentProject) return;
-    
-    // Jangan render chart kalau belum ada input dari user
-    if (!hasUserInput) {
-        showPleaseInputMessage();
-        return;
-    }
 
     const chart = document.getElementById('ganttChart');
     const DAY_WIDTH = 40;
@@ -614,10 +717,9 @@ function renderChart() {
     // RENDER BODY (TASKS)
     html += '<div class="chart-body">';
 
-    currentTasks.forEach(task => {
-        // Skip jika duration masih 0
-        if (task.duration === 0) return;
+    const originalTemplate = currentProject.work === 'ME' ? taskTemplateME : taskTemplateSipil;
 
+    currentTasks.forEach(task => {
         const taskRealStart = new Date(projectStartDate);
         taskRealStart.setDate(projectStartDate.getDate() + (task.start - 1));
 
@@ -627,7 +729,10 @@ function renderChart() {
         const leftPos = (task.start - 1) * DAY_WIDTH;
         const widthPos = task.duration * DAY_WIDTH;
 
-        const barClass = 'on-time';
+        const originalTask = originalTemplate.find(t => t.id === task.id);
+        const isDelayed = originalTask ? task.start > originalTask.start : false;
+
+        let barClass = isDelayed ? 'delayed' : 'on-time';
 
         const tooltipText = `${task.name}\n${formatDateID(taskRealStart)} s/d ${formatDateID(taskRealEnd)}\n(${task.duration} hari)`;
 
@@ -707,74 +812,54 @@ function drawDependencyLines() {
 // ==================== TASK MANIPULATION ====================
 function applyTaskSchedule() {
     if (!currentProject || !currentTasks.length) {
-        alert('Pilih No. Ulok terlebih dahulu!');
+        alert('Tidak ada proyek yang dipilih!');
         return;
     }
 
     let hasError = false;
-    const updatedTasks = [];
-
-    currentTasks.forEach(task => {
+    const updatedTasks = currentTasks.map(task => {
         const startInput = document.getElementById(`task-start-${task.id}`);
         const endInput = document.getElementById(`task-end-${task.id}`);
 
-        if (!startInput || !endInput) return;
+        if (!startInput || !endInput) return task;
 
-        const startDay = parseInt(startInput.value);
-        const endDay = parseInt(endInput.value);
-
-        // Validasi
-        if (isNaN(startDay) || isNaN(endDay)) {
-            alert(`Error pada ${task.name}: Hari mulai dan selesai harus diisi!`);
-            hasError = true;
-            return;
-        }
-
-        if (startDay < 1 || endDay < 1) {
-            alert(`Error pada ${task.name}: Hari mulai dan selesai harus minimal 1!`);
-            hasError = true;
-            return;
-        }
+        const startDay = parseInt(startInput.value) || 1;
+        const endDay = parseInt(endInput.value) || startDay;
 
         if (endDay < startDay) {
-            alert(`Error pada ${task.name}: Hari selesai tidak boleh lebih kecil dari hari mulai!`);
+            alert(`Error pada "${task.name}": Hari selesai tidak boleh kurang dari hari mulai!`);
             hasError = true;
-            return;
+            return task;
         }
 
         const duration = endDay - startDay + 1;
 
-        // Update task
-        updatedTasks.push({
+        return {
             ...task,
             start: startDay,
             duration: duration,
             inputData: { startDay, endDay }
-        });
+        };
     });
 
     if (hasError) return;
 
-    // Apply updated tasks
     currentTasks = updatedTasks;
     projectTasks[currentProject.ulok] = updatedTasks;
-    hasUserInput = true;
 
-    // Render chart dan update stats
     renderChart();
     updateStats();
-    document.getElementById('exportButtons').style.display = 'flex';
-
-    alert('✅ Jadwal berhasil diterapkan!');
+    renderApiData();
+    
+    alert('Jadwal pengerjaan berhasil diterapkan!');
 }
 
 function resetTaskSchedule() {
-    if (!currentProject) {
-        alert('Pilih No. Ulok terlebih dahulu!');
-        return;
-    }
+    if (!currentProject) return;
 
-    // Reset ke template default (semua durasi 0)
+    const confirmReset = window.confirm('Reset jadwal ke template awal?');
+    if (!confirmReset) return;
+
     if (currentProject.work === 'ME') {
         projectTasks[currentProject.ulok] = JSON.parse(JSON.stringify(taskTemplateME));
     } else {
@@ -782,15 +867,51 @@ function resetTaskSchedule() {
     }
 
     currentTasks = projectTasks[currentProject.ulok];
-    hasUserInput = false;
-
-    // Re-render form dan hide chart
-    renderApiData();
-    showPleaseInputMessage();
+    
+    // Clear chart and show input message
+    const chart = document.getElementById('ganttChart');
+    chart.innerHTML = `
+        <div style="text-align: center; padding: 60px; color: #6c757d;">
+            <h2 style="margin-bottom: 15px;">📝 Input Jadwal Pengerjaan</h2>
+            <p>Silakan input hari mulai dan hari selesai untuk setiap tahapan, kemudian klik "Terapkan Jadwal"</p>
+        </div>
+    `;
+    
     updateStats();
-    document.getElementById('exportButtons').style.display = 'none';
+    renderApiData();
+}
 
-    alert('🔄 Jadwal telah direset ke 0.');
+function applyDelay() {
+    if (!currentProject) {
+        alert('Pilih No. Ulok terlebih dahulu!');
+        return;
+    }
+
+    const taskId = document.getElementById('taskSelect')?.value;
+    const delayDays = parseInt(document.getElementById('delayInput')?.value) || 0;
+
+    if (!taskId) {
+        alert('Pilih tahap terlebih dahulu!');
+        return;
+    }
+
+    const taskIndex = currentTasks.findIndex(t => t.id == taskId);
+    if (taskIndex === -1) return;
+
+    currentTasks[taskIndex].start += delayDays;
+
+    function updateDependentTasks(taskId, delay) {
+        currentTasks.forEach(task => {
+            if (task.dependencies.includes(parseInt(taskId))) {
+                task.start += delay;
+                updateDependentTasks(task.id, delay);
+            }
+        });
+    }
+
+    updateDependentTasks(taskId, delayDays);
+    renderChart();
+    updateStats();
 }
 
 function updateStats() {
@@ -825,6 +946,24 @@ function updateStats() {
             <div class="stat-label">Estimasi Selesai (hari)</div>
         </div>
     `;
+}
+
+function resetChart() {
+    if (!currentProject) return;
+
+    if (currentProject.work === 'ME') {
+        projectTasks[currentProject.ulok] = JSON.parse(JSON.stringify(taskTemplateME));
+    } else {
+        projectTasks[currentProject.ulok] = JSON.parse(JSON.stringify(taskTemplateSipil));
+    }
+
+    currentTasks = projectTasks[currentProject.ulok];
+    const delayInput = document.getElementById('delayInput');
+    const taskSelect = document.getElementById('taskSelect');
+    if (delayInput) delayInput.value = 0;
+    if (taskSelect) taskSelect.value = '';
+    renderChart();
+    updateStats();
 }
 
 // ==================== EXPORT FUNCTIONS ====================

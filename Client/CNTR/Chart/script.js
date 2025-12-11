@@ -379,16 +379,6 @@ async function changeUlok() {
     currentTasks = projectTasks[selectedUlok];
     fetchGanttDataForSelection(selectedUlok);
 
-    // Update task select dropdown
-    const taskSelect = document.getElementById('taskSelect');
-    taskSelect.innerHTML = '<option value="">-- Pilih Tahap --</option>';
-    currentTasks.forEach(task => {
-        const option = document.createElement('option');
-        option.value = task.id;
-        option.textContent = task.name;
-        taskSelect.appendChild(option);
-    });
-
     console.log("✅ Selected project:", currentProject);
 
     renderProjectInfo();

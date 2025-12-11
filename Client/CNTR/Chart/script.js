@@ -355,10 +355,6 @@ function renderApiData() {
 
     container.innerHTML = `
         <div class="api-card">
-            <div class="api-card-title">Data SPK</div>
-            ${spkRows}
-        </div>
-        <div class="api-card">
             <div class="api-card-title">Kategori RAB (Approved)</div>
             <div class="api-badge-group">${rabContent}</div>
         </div>

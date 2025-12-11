@@ -452,33 +452,7 @@ function renderProjectInfo() {
             <div class="project-label">Kontraktor</div>
             <div class="project-value">${currentProject.contractor}</div>
         </div>
-        <div class="project-detail">
-            <div class="project-label">Tanggal Mulai</div>
-            <div class="project-value">${tglMulai}</div>
-        </div>
     `;
-
-    if (currentProject.durasi) {
-        html += `
-        <div class="project-detail">
-            <div class="project-label">Durasi</div>
-            <div class="project-value">${currentProject.durasi} hari</div>
-        </div>
-        <div class="project-detail">
-            <div class="project-label">Target Selesai</div>
-            <div class="project-value">${tglSelesai}</div>
-        </div>
-        `;
-    }
-
-    if (currentProject.status) {
-        html += `
-        <div class="project-detail">
-            <div class="project-label">Status</div>
-            <div class="project-value">${currentProject.status}</div>
-        </div>
-        `;
-    }
 
     if (currentProject.regional) {
         html += `
@@ -524,10 +498,6 @@ function updateProjectFromSpk(spkData) {
 
     const contractor = getFirstNonEmpty(['Kontraktor', 'contractor', 'kontraktor', 'Nama Kontraktor']);
     if (contractor) currentProject.contractor = contractor;
-
-    const startRaw = getFirstNonEmpty(['Tanggal Mulai', 'tanggal_mulai', 'Start Date']);
-    const parsedStart = parseDateValue(startRaw);
-    if (parsedStart) currentProject.startDate = parsedStart.toISOString().split('T')[0];
 
     const durasiRaw = getFirstNonEmpty(['Durasi', 'durasi']);
     const durasiNum = durasiRaw ? parseInt(durasiRaw, 10) : null;
@@ -843,7 +813,6 @@ function exportToExcel() {
         ["Nama Toko", currentProject.store],
         ["Pekerjaan", currentProject.work],
         ["Kontraktor", currentProject.contractor],
-        ["Tanggal Mulai", formatDateID(startDate)],
         [],
         ["No", "Tahapan", "Mulai", "Selesai", "Durasi", "Status"]
     ];

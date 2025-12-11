@@ -697,6 +697,82 @@ function drawDependencyLines() {
 }
 
 // ==================== TASK MANIPULATION ====================
+function applyTaskSchedule() {
+    if (!currentProject || !currentTasks.length) {
+        alert('Pilih No. Ulok terlebih dahulu!');
+        return;
+    }
+
+    let hasError = false;
+    const updatedTasks = [];
+
+    currentTasks.forEach(task => {
+        const startInput = document.getElementById(`task-start-${task.id}`);
+        const endInput = document.getElementById(`task-end-${task.id}`);
+
+        if (!startInput || !endInput) return;
+
+        const startDay = parseInt(startInput.value) || 1;
+        const endDay = parseInt(endInput.value) || startDay;
+
+        // Validasi
+        if (endDay < startDay) {
+            alert(`Error pada ${task.name}: Hari selesai tidak boleh lebih kecil dari hari mulai!`);
+            hasError = true;
+            return;
+        }
+
+        const duration = endDay - startDay + 1;
+
+        // Update task
+        updatedTasks.push({
+            ...task,
+            start: startDay,
+            duration: duration,
+            inputData: { startDay, endDay }
+        });
+    });
+
+    if (hasError) return;
+
+    // Apply updated tasks
+    currentTasks = updatedTasks;
+    projectTasks[currentProject.ulok] = updatedTasks;
+    hasUserInput = true;
+
+    // Render chart dan update stats
+    renderChart();
+    updateStats();
+    document.getElementById('exportButtons').style.display = 'flex';
+
+    alert('✅ Jadwal berhasil diterapkan!');
+}
+
+function resetTaskSchedule() {
+    if (!currentProject) {
+        alert('Pilih No. Ulok terlebih dahulu!');
+        return;
+    }
+
+    // Reset ke template default
+    if (currentProject.work === 'ME') {
+        projectTasks[currentProject.ulok] = JSON.parse(JSON.stringify(taskTemplateME));
+    } else {
+        projectTasks[currentProject.ulok] = JSON.parse(JSON.stringify(taskTemplateSipil));
+    }
+
+    currentTasks = projectTasks[currentProject.ulok];
+    hasUserInput = false;
+
+    // Re-render form dan hide chart
+    renderApiData();
+    showPleaseInputMessage();
+    updateStats();
+    document.getElementById('exportButtons').style.display = 'none';
+
+    alert('🔄 Jadwal telah direset ke default.');
+}
+
 function applyDelay() {
     if (!currentProject) {
         alert('Pilih No. Ulok terlebih dahulu!');

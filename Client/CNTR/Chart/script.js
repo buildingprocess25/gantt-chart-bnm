@@ -277,17 +277,9 @@ async function fetchGanttDataForSelection(selectedValue) {
 
         ganttApiData = data;
 
-        if (currentProject && data?.spk) {
-            updateProjectFromSpk(data.spk);
+        if (currentProject && data?.rab) {
+            updateProjectFromRab(data.rab);
         }
-
-        // JANGAN override tasks dengan RAB categories
-        // Biarkan tasks menggunakan template default
-        // if (currentProject && Array.isArray(data?.rab) && data.rab.length) {
-        //     const generatedTasks = buildTasksFromRabCategories(data.rab);
-        //     projectTasks[currentProject.ulok] = generatedTasks;
-        //     currentTasks = generatedTasks;
-        // }
 
         renderProjectInfo();
         renderApiData(); // Re-render form dengan tasks yang benar
@@ -312,7 +304,7 @@ function renderApiData() {
     if (isLoadingGanttData) {
         container.innerHTML = `
             <div class="api-card">
-                <div class="api-card-title">Memuat data SPK...</div>
+                <div class="api-card-title">Memuat data RAB...</div>
                 <div class="api-row">Mohon tunggu, sedang mengambil data terbaru.</div>
             </div>
         `;
@@ -602,12 +594,12 @@ function lockInterface() {
 }
 
 // ==================== API DATA HELPERS ====================
-function updateProjectFromSpk(spkData) {
-    if (!spkData || !currentProject) return;
+function updateProjectFromRab(rabData) {
+    if (!rabData || !currentProject) return;
 
     const getFirstNonEmpty = (keys) => {
         for (const key of keys) {
-            const val = spkData[key];
+            const val = rabData[key];
             if (val !== undefined && val !== null && String(val).trim() !== '') return val;
         }
         return undefined;

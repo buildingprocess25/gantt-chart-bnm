@@ -1,7 +1,7 @@
 // ==================== API CONFIGURATION ====================
 const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
-    rabList: `${API_BASE_URL}/rab_data`,
+    ulokList: `${API_BASE_URL}/get_all_ulok_rab`,
     ganttData: `${API_BASE_URL}/get_gantt_data`,
 };
 
@@ -201,7 +201,7 @@ async function loadDataAndInit() {
     try {
         showLoadingMessage();
 
-        const response = await fetch(ENDPOINTS.rabList);
+        const response = await fetch(ENDPOINTS.ulokList);
         if (!response.ok) {
             throw new Error(`HTTP Error: ${response.status}`);
         }

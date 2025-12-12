@@ -204,7 +204,7 @@ async function loadDataAndInit() {
 
         // 1. AMBIL EMAIL DARI STORAGE
         // Pastikan key 'email' sesuai dengan yang Anda simpan saat proses Login
-        const userEmail = sessionStorage.getItem('email'); 
+        const userEmail = sessionStorage.getItem('loggedInUserEmail'); 
 
         // Cek validasi session
         if (!userEmail) {

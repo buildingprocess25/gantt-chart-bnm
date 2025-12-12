@@ -1212,8 +1212,12 @@ def get_kontraktor():
         return jsonify({"error": str(e)}), 500
 
 # --- ENDPOINTS UNTUK RAB ---
-@app.route('/api/rab_data', methods=['GET'])
-def get_all_rab_data_list():
+
+
+
+
+@app.route('/api/get_all_ulok_rab', methods=['GET'])
+def get_all_rab_ulok_data_list():
     try:
         # Mengembalikan list of objects langsung
         ulok_list = google_provider.get_all_rab_ulok()

@@ -401,11 +401,11 @@ function renderApiData() {
     html += '</div>';
     html += `
         <div class="task-input-actions">
-            <button class="btn-reset-schedule" onclick="resetTaskSchedule()">
-                Reset
-            </button>
             <button class="btn-apply-schedule" onclick="applyTaskSchedule()">
                 Terapkan Jadwal
+            </button>
+            <button class="btn-reset-schedule" onclick="resetTaskSchedule()">
+                Reset
             </button>
         </div>
     `;
@@ -413,7 +413,7 @@ function renderApiData() {
     html += `
         <div class="task-input-actions" style="border-top: none; padding-top: 0;">
             <button class="btn-publish" onclick="confirmAndPublish()">
-                Kunci & Terbitkan Jadwal
+                Kunci Jadwal
             </button>
         </div>
     `;

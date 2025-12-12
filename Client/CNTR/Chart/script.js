@@ -197,22 +197,52 @@ function parseProjectFromLabel(label, value) {
 }
 
 // ==================== FETCH DATA FROM API ====================
+// ==================== FETCH DATA FROM API ====================
 async function loadDataAndInit() {
     try {
         showLoadingMessage();
 
-        const response = await fetch(ENDPOINTS.ulokList);
+        // 1. AMBIL EMAIL DARI STORAGE
+        // Pastikan key 'email' sesuai dengan yang Anda simpan saat proses Login
+        const userEmail = sessionStorage.getItem('email'); 
+
+        // Cek validasi session
+        if (!userEmail) {
+            console.warn("⚠️ Email tidak ditemukan di session.");
+            // Opsional: Redirect ke halaman login jika email kosong
+            window.location.href = 'https://gantt-chart-bnm.vercel.app'; 
+            return;
+        }
+
+        console.log("📧 Mengambil data untuk email:", userEmail);
+
+        // 2. TAMBAHKAN PARAMETER EMAIL KE URL
+        // Endpoint menjadi: .../get_ulok_by_email?email=user@contoh.com
+        const urlWithParam = `${ENDPOINTS.ulokList}?email=${encodeURIComponent(userEmail)}`;
+
+        const response = await fetch(urlWithParam);
+        
         if (!response.ok) {
-            throw new Error(`HTTP Error: ${response.status}`);
+            // Menangkap error 400 atau 500
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.message || `HTTP Error: ${response.status}`);
         }
 
         const apiData = await response.json();
         console.log("✅ Data dari API:", apiData);
 
+        if (!Array.isArray(apiData)) {
+            throw new Error("Format data API tidak valid (harus array)");
+        }
+
         projects = apiData.map(item => parseProjectFromLabel(item.label, item.value));
 
         console.log("✅ Projects loaded:", projects.length);
-        console.log("📋 Sample project:", projects[0]);
+        
+        if (projects.length === 0) {
+            showErrorMessage("Tidak ada data proyek ditemukan untuk email ini.");
+            return;
+        }
 
         initChart();
 

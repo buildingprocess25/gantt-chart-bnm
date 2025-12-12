@@ -481,34 +481,6 @@ function renderProjectInfo() {
             <div class="project-value">${currentProject.alamat}</div>
         </div>
     `;
-
-    if (currentProject.regional) {
-        html += `
-        <div class="project-detail">
-            <div class="project-label">Regional</div>
-            <div class="project-value">${currentProject.regional}</div>
-        </div>
-        `;
-    }
-
-    if (currentProject.area) {
-        html += `
-        <div class="project-detail">
-            <div class="project-label">Area</div>
-            <div class="project-value">${currentProject.area}</div>
-        </div>
-        `;
-    }
-
-    if (currentProject.alamat) {
-        html += `
-        <div class="project-detail">
-            <div class="project-label">Alamat</div>
-            <div class="project-value">${currentProject.alamat}</div>
-        </div>
-        `;
-    }
-
     info.innerHTML = html;
 }
 

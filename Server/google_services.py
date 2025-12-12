@@ -159,6 +159,11 @@ class GoogleServiceProvider:
             print(f"Error saat mengambil data SPK by cabang: {e}")
             return []
 
+    
+    
+    
+    # Mengambil semua data rab untuk dropdown
+
     def get_all_rab_ulok(self):
         """
         Mengambil daftar unik Nomor Ulok beserta Proyek, Nama Toko, dan Lingkup Pekerjaan 
@@ -216,25 +221,29 @@ class GoogleServiceProvider:
             target_ulok = str(kode_ulok).strip().upper()
             target_lingkup = str(lingkup_pekerjaan).strip()
             
-            # --- 1. AMBIL DATA SPK ---
-            spk_sheet = self.sheet.worksheet(config.SPK_DATA_SHEET_NAME)
-            spk_rows = spk_sheet.get_all_records()
-            spk_data = None
-            
-            # Cari dari bawah (data terbaru)
-            for row in reversed(spk_rows):
-                # Filter berdasarkan Nomor Ulok DAN Lingkup Pekerjaan (di sheet SPK biasanya pakai spasi)
-                row_ulok = str(row.get("Nomor Ulok", "")).strip().upper()
-                row_lingkup = str(row.get("Lingkup Pekerjaan", "")).strip() # Case insensitive comparison might be safer
-                
-                if row_ulok == target_ulok and row_lingkup.lower() == target_lingkup.lower():
-                    spk_data = row
-                    break
-            
-            # --- 2. AMBIL DATA RAB FORM 3 (APPROVED) ---
+            # --- AMBIL DATA RAB FORM 3 (APPROVED) ---
             rab_sheet = self.sheet.worksheet(config.APPROVED_DATA_SHEET_NAME) # Form3
             all_rab_values = rab_sheet.get_all_values()
             filtered_categories = []
+            rab_data = None
+            
+            # Field yang akan diambil dari RAB
+            rab_fields = [
+                config.COLUMN_NAMES.STATUS,
+                config.COLUMN_NAMES.TIMESTAMP,
+                config.COLUMN_NAMES.LINK_PDF_NONSBO,
+                config.COLUMN_NAMES.KOORDINATOR_APPROVER,
+                config.COLUMN_NAMES.KOORDINATOR_APPROVAL_TIME,
+                config.COLUMN_NAMES.MANAGER_APPROVER,
+                config.COLUMN_NAMES.MANAGER_APPROVAL_TIME,
+                config.COLUMN_NAMES.EMAIL_PEMBUAT,
+                config.COLUMN_NAMES.LOKASI,
+                config.COLUMN_NAMES.PROYEK,
+                config.COLUMN_NAMES.ALAMAT,
+                config.COLUMN_NAMES.CABANG,
+                config.COLUMN_NAMES.LINGKUP_PEKERJAAN,
+                config.COLUMN_NAMES.NAMA_TOKO
+            ]
             
             if all_rab_values:
                 headers = all_rab_values[0]
@@ -268,8 +277,13 @@ class GoogleServiceProvider:
                             matched_row_dict = dict(zip(headers, row_vals))
                             break
                     
-                    # --- 3. PROSES KATEGORI PEKERJAAN (Hanya jika data ditemukan) ---
+                    # --- PROSES DATA RAB DAN KATEGORI PEKERJAAN (Hanya jika data ditemukan) ---
                     if matched_row_dict:
+                        # Ambil hanya field yang diperlukan untuk rab_data
+                        rab_data = {}
+                        for field in rab_fields:
+                            rab_data[field] = matched_row_dict.get(field, "")
+                        
                         # Tentukan master list berdasarkan input parameter lingkup
                         if "SIPIL" in target_lingkup.upper():
                             master_list = config.KATEGORI_SIPIL
@@ -292,13 +306,13 @@ class GoogleServiceProvider:
                                 filtered_categories.append(cat)
 
             return {
-                "spk": spk_data,
-                "rab": filtered_categories  # Hanya mengembalikan list kategori
+                "rab": rab_data,
+                "filtered_categories": filtered_categories
             }
 
         except Exception as e:
             print(f"Error getting Gantt data: {e}")
-            return {"spk": None, "rab": []}
+            return {"rab": None, "filtered_categories": []}
 
     # get ulok by email pembuat
     def get_ulok_by_email(self, email):
@@ -328,6 +342,9 @@ class GoogleServiceProvider:
         except Exception as e:
             print(f"Error saat mengambil daftar ulok by email: {e}")
             return []
+
+
+    # akhir gantt chart
 
     def get_user_info_by_cabang(self, cabang):
         pic_list, koordinator_info, manager_info = [], {}, {}

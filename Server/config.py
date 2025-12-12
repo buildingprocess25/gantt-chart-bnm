@@ -50,6 +50,7 @@ class COLUMN_NAMES:
     ALASAN_PENOLAKAN_SPK = "Alasan Penolakan"
     GRAND_TOTAL_FINAL = "Grand Total Final"
     LINK_PDF_IL = "Link PDF IL"
+    NAMA_TOKO = "nama_toko"
 
 # --- Jabatan & Status ---
 class JABATAN:

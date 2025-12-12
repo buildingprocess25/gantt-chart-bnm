@@ -401,24 +401,23 @@ function renderApiData() {
     html += '</div>';
     html += `
         <div class="task-input-actions">
-            <button class="btn-apply-schedule" onclick="applyTaskSchedule()">
-                Terapkan Jadwal
-            </button>
             <button class="btn-reset-schedule" onclick="resetTaskSchedule()">
                 Reset
             </button>
+            <button class="btn-apply-schedule" onclick="applyTaskSchedule()">
+                Terapkan Jadwal
+            </button>
         </div>
     `;
-    html += '</div>';
+    html += '</div>'; // penutup task-input-card
     html += `
-        <div class="task-input-actions">
+        <div class="task-input-actions" style="border-top: none; padding-top: 0;">
             <button class="btn-publish" onclick="confirmAndPublish()">
-                🔒 Kunci Jadwal
+                Kunci & Terbitkan Jadwal
             </button>
         </div>
     `;
     html += '</div>';
-
     container.innerHTML = html;
 }
 

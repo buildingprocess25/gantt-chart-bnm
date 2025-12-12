@@ -390,12 +390,8 @@ function renderApiData() {
     html += '</div>';
     html += `
         <div class="task-input-actions">
-            <button class="btn-save-draft" onclick="saveSchedule('draft')">
-                💾 Simpan Draft
-            </button>
-
             <button class="btn-publish" onclick="confirmAndPublish()">
-                🔒 Kunci & Terbitkan
+                🔒 Kunci Jadwal
             </button>
         </div>
     `;

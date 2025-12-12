@@ -584,15 +584,13 @@
         }
 
         .btn-reset-schedule {
-            background: white;
-            color: #e53e3e;
-            border: 1px solid #e53e3e;
+            background: linear-gradient(135deg, #ff0000ff 0%, #cc0000ff 100%);
+            color: white;
         }
 
         .btn-reset-schedule:hover {
-            background: #fff5f5;
-            color: #c53030;
-            box-shadow: 0 4px 15px rgba(229, 62, 62, 0.2); /* Glow Merah Tipis */
+            background: linear-gradient(135deg, #d90000ff 0%, #b30000ff 100%);
+            box-shadow: 0 4px 15px rgba(255, 0, 0, 0.4); /* Glow Biru */
         }
 
         .btn-publish {

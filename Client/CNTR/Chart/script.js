@@ -477,8 +477,8 @@ function renderProjectInfo() {
             <div class="project-value">${currentProject.work}</div>
         </div>
         <div class="project-detail">
-            <div class="project-label">Kontraktor</div>
-            <div class="project-value">${currentProject.contractor}</div>
+            <div class="project-label">Alamat</div>
+            <div class="project-value">${currentProject.alamat}</div>
         </div>
     `;
 
@@ -635,8 +635,8 @@ function updateProjectFromRab(rabData) {
         return undefined;
     };
 
-    const contractor = getFirstNonEmpty(['Kontraktor', 'contractor', 'kontraktor', 'Nama Kontraktor']);
-    if (contractor) currentProject.contractor = contractor;
+    const alamat = getFirstNonEmpty(['Alamat', 'alamat']);
+    if (alamat) currentProject.alamat = alamat;
 
     const durasiRaw = getFirstNonEmpty(['Durasi', 'durasi']);
     const durasiNum = durasiRaw ? parseInt(durasiRaw, 10) : null;
@@ -951,7 +951,7 @@ function exportToExcel() {
         ["Jenis Proyek", currentProject.projectType],
         ["Nama Toko", currentProject.store],
         ["Pekerjaan", currentProject.work],
-        ["Kontraktor", currentProject.contractor],
+        ["Alamat", currentProject.alamat],
         [],
         ["No", "Tahapan", "Mulai", "Selesai", "Durasi", "Status"]
     ];

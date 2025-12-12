@@ -1,7 +1,7 @@
 // ==================== API CONFIGURATION ====================
 const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
-    spkList: `${API_BASE_URL}/spk_data`,
+    rabList: `${API_BASE_URL}/rab_data`,
     ganttData: `${API_BASE_URL}/get_gantt_data`,
 };
 
@@ -123,6 +123,21 @@ function showErrorMessage(message) {
     `;
 }
 
+function showWaitingForContractorMessage() {
+    const chart = document.getElementById('ganttChart');
+    chart.innerHTML = `
+        <div style="text-align: center; padding: 60px; color: #6c757d; background: #f8f9fa; border-radius: 8px; margin-top: 20px;">
+            <div style="font-size: 48px; margin-bottom: 20px;">📅</div>
+            <h2 style="margin-bottom: 15px;">Jadwal Belum Tersedia</h2>
+            <p>Kontraktor belum menginput jadwal pengerjaan untuk Ulok ini.</p>
+            <p style="font-size: 0.9em; margin-top: 10px;">Data akan muncul otomatis setelah Kontraktor melakukan submit jadwal.</p>
+        </div>
+    `;
+    
+    // Kosongkan stats karena tidak ada data
+    document.getElementById('stats').innerHTML = '';
+}
+
 function showSelectProjectMessage() {
     const chart = document.getElementById('ganttChart');
     chart.innerHTML = `
@@ -197,7 +212,7 @@ async function loadDataAndInit() {
     try {
         showLoadingMessage();
 
-        const response = await fetch(ENDPOINTS.spkList);
+        const response = await fetch(ENDPOINTS.rabList);
         if (!response.ok) {
             throw new Error(`HTTP Error: ${response.status}`);
         }
@@ -224,12 +239,7 @@ function initChart() {
     ulokSelect.innerHTML = '<option value="">-- Pilih Proyek --</option>';
 
     projects.forEach(project => {
-        // Setup template task berdasarkan work type
-        if (project.work === 'ME') {
-            projectTasks[project.ulok] = JSON.parse(JSON.stringify(taskTemplateME));
-        } else {
-            projectTasks[project.ulok] = JSON.parse(JSON.stringify(taskTemplateSipil));
-        }
+        projectTasks[project.ulok] = null; 
 
         const option = document.createElement('option');
         option.value = project.ulok;
@@ -243,23 +253,15 @@ function initChart() {
 // ==================== GANTT DATA FETCH (API) ====================
 async function fetchGanttDataForSelection(selectedValue) {
     if (!selectedValue) {
-        ganttApiData = null;
-        ganttApiError = null;
         renderApiData();
         return;
     }
 
     const { ulok, lingkup } = extractUlokAndLingkup(selectedValue);
-
-    if (!ulok || !lingkup) {
-        ganttApiData = null;
-        ganttApiError = 'Parameter ulok atau lingkup tidak valid.';
-        renderApiData();
-        return;
-    }
+    if (!ulok || !lingkup) return;
 
     isLoadingGanttData = true;
-    ganttApiError = null;
+    showLoadingMessage(); // Tampilkan loading di area chart juga
     renderApiData();
 
     const url = `${ENDPOINTS.ganttData}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(lingkup)}`;
@@ -268,35 +270,60 @@ async function fetchGanttDataForSelection(selectedValue) {
         const response = await fetch(url);
         const data = await response.json();
 
-        if (!response.ok || data?.status === 'error') {
-            const message = data?.message || data?.error || `HTTP ${response.status}`;
-            throw new Error(message);
-        }
+        if (!response.ok) throw new Error(data?.message || 'Error fetch data');
 
         ganttApiData = data;
 
-        // Update project info with SPK data if available
+        // 1. Update Info SPK jika ada
         if (currentProject && data?.spk) {
             updateProjectFromSpk(data.spk);
         }
 
-        // Rebuild tasks from RAB categories when available
-        if (currentProject && Array.isArray(data?.rab) && data.rab.length) {
-            const generatedTasks = buildTasksFromRabCategories(data.rab);
-            projectTasks[currentProject.ulok] = generatedTasks;
-            currentTasks = generatedTasks;
+        // 2. Cek Data Jadwal dari Kontraktor
+        
+        let contractorTasks = data.tasks || data.schedule || []; 
+        
+        if (Array.isArray(contractorTasks) && contractorTasks.length > 0) {
+            // KASUS ADA DATA: Load data kontraktor ke currentTasks
+            currentTasks = contractorTasks;
+            projectTasks[currentProject.ulok] = currentTasks;
+            
+            // Render Chart
+            renderChart();
+            updateStats();
+            updateTaskDropdown(); // Isi dropdown delay pic
+            document.getElementById('exportButtons').style.display = 'flex';
+        } else {
+            // KASUS KOSONG: Kontraktor belum input
+            currentTasks = []; // Kosongkan
+            showWaitingForContractorMessage(); // Tampilkan pesan kosong
         }
 
         renderProjectInfo();
-        renderChart();
-        updateStats();
+
     } catch (error) {
         console.error('❌ Error fetching Gantt data:', error);
-        ganttApiData = null;
-        ganttApiError = error.message || 'Gagal mengambil data Gantt.';
+        ganttApiError = error.message;
+        showErrorMessage("Gagal mengambil data jadwal terbaru.");
     } finally {
         isLoadingGanttData = false;
         renderApiData();
+    }
+}
+
+// Helper kecil untuk update dropdown pilihan task (untuk input delay PIC)
+function updateTaskDropdown() {
+    const taskSelect = document.getElementById('taskSelect');
+    if(!taskSelect) return;
+    
+    taskSelect.innerHTML = '<option value="">-- Pilih Tahap --</option>';
+    if (currentTasks && currentTasks.length > 0) {
+        currentTasks.forEach(task => {
+            const option = document.createElement('option');
+            option.value = task.id;
+            option.textContent = task.name;
+            taskSelect.appendChild(option);
+        });
     }
 }
 
@@ -370,31 +397,27 @@ async function changeUlok() {
     const ulokSelect = document.getElementById('ulokSelect');
     const selectedUlok = ulokSelect.value;
 
+    // Reset tampilan saat ganti pilihan
+    document.getElementById('ganttChart').innerHTML = ''; 
+    document.getElementById('stats').innerHTML = '';
+    document.getElementById('taskSelect').innerHTML = '<option value="">-- Pilih Tahap --</option>';
+    document.getElementById('exportButtons').style.display = 'none';
+
     if (!selectedUlok) {
         showSelectProjectMessage();
         return;
     }
 
     currentProject = projects.find(p => p.ulok === selectedUlok);
-    currentTasks = projectTasks[selectedUlok];
+    
+    // Set currentTasks ke null dulu (menunggu fetch)
+    currentTasks = null; 
+    
+    // Panggil data terbaru dari server
     fetchGanttDataForSelection(selectedUlok);
 
-    // Update task select dropdown
-    const taskSelect = document.getElementById('taskSelect');
-    taskSelect.innerHTML = '<option value="">-- Pilih Tahap --</option>';
-    currentTasks.forEach(task => {
-        const option = document.createElement('option');
-        option.value = task.id;
-        option.textContent = task.name;
-        taskSelect.appendChild(option);
-    });
-
     console.log("✅ Selected project:", currentProject);
-
     renderProjectInfo();
-    renderChart();
-    updateStats();
-    document.getElementById('exportButtons').style.display = 'flex';
 }
 
 // ==================== RENDER FUNCTIONS ====================

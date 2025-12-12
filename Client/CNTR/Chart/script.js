@@ -1,7 +1,7 @@
 // ==================== API CONFIGURATION ====================
 const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
-    spkList: `${API_BASE_URL}/spk_data`,
+    spkList: `${API_BASE_URL}/rab_data`,
     ganttData: `${API_BASE_URL}/get_gantt_data`,
 };
 

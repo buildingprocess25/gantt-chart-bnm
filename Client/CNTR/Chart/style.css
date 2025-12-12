@@ -540,7 +540,8 @@
         }
 
         .btn-apply-schedule,
-        .btn-reset-schedule {
+        .btn-reset-schedule,
+        .btn-publish, {
             padding: 10px 20px;
             border: none;
             border-radius: 6px;
@@ -567,6 +568,16 @@
 
         .btn-reset-schedule:hover {
             background: #c53030;
+            transform: translateY(-2px);
+        }
+
+        .btn-publish {
+            background: #38a169;
+            color: white;
+        }
+
+        .btn-publish:hover {
+            background: #2f855a;
             transform: translateY(-2px);
         }
 

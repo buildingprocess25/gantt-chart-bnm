@@ -1,7 +1,7 @@
 // ==================== API CONFIGURATION ====================
 const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
-    rabList: `${API_BASE_URL}/rab_data`,
+    ulokList: `${API_BASE_URL}/get_all_ulok_rab`,
     ganttData: `${API_BASE_URL}/get_gantt_data`,
 };
 
@@ -201,7 +201,7 @@ async function loadDataAndInit() {
     try {
         showLoadingMessage();
 
-        const response = await fetch(ENDPOINTS.rabList);
+        const response = await fetch(ENDPOINTS.ulokList);
         if (!response.ok) {
             throw new Error(`HTTP Error: ${response.status}`);
         }
@@ -277,17 +277,9 @@ async function fetchGanttDataForSelection(selectedValue) {
 
         ganttApiData = data;
 
-        if (currentProject && data?.spk) {
-            updateProjectFromSpk(data.spk);
+        if (currentProject && data?.rab) {
+            updateProjectFromRab(data.rab);
         }
-
-        // JANGAN override tasks dengan RAB categories
-        // Biarkan tasks menggunakan template default
-        // if (currentProject && Array.isArray(data?.rab) && data.rab.length) {
-        //     const generatedTasks = buildTasksFromRabCategories(data.rab);
-        //     projectTasks[currentProject.ulok] = generatedTasks;
-        //     currentTasks = generatedTasks;
-        // }
 
         renderProjectInfo();
         renderApiData(); // Re-render form dengan tasks yang benar
@@ -312,7 +304,7 @@ function renderApiData() {
     if (isLoadingGanttData) {
         container.innerHTML = `
             <div class="api-card">
-                <div class="api-card-title">Memuat data SPK...</div>
+                <div class="api-card-title">Memuat data RAB...</div>
                 <div class="api-row">Mohon tunggu, sedang mengambil data terbaru.</div>
             </div>
         `;
@@ -388,6 +380,13 @@ function renderApiData() {
         </div>
     `;
     html += '</div>';
+    html += `
+        <div class="task-input-actions">
+            <button class="btn-publish" onclick="confirmAndPublish()">
+                🔒 Kunci Jadwal
+            </button>
+        </div>
+    `;
 
     container.innerHTML = html;
 }
@@ -424,7 +423,6 @@ function renderProjectInfo() {
     const startDate = currentProject.startDate ? new Date(currentProject.startDate) : new Date();
     const tglMulai = formatDateID(startDate);
 
-    let tglSelesai = '-';
     if (currentProject.durasi) {
         const endDate = new Date(startDate);
         endDate.setDate(endDate.getDate() + currentProject.durasi);
@@ -484,13 +482,124 @@ function renderProjectInfo() {
     info.innerHTML = html;
 }
 
+function confirmAndPublish() {
+    // Pastikan data di variable currentTasks sudah update sesuai inputan terakhir
+    applyTaskSchedule(); 
+    
+    // Cek apakah user benar-benar sudah input (total durasi > 0)
+    const totalDuration = currentTasks.reduce((acc, t) => acc + t.duration, 0);
+    if (totalDuration === 0) {
+        alert("⚠️ Belum ada jadwal yang diisi. Mohon isi durasi terlebih dahulu.");
+        return;
+    }
+
+    const isSure = confirm(
+        "KONFIRMASI PENERBITAN JADWAL\n\n" +
+        "Apakah Anda yakin ingin MENGUNCI jadwal ini?\n" +
+        "Setelah diterbitkan:\n" +
+        "1. Data akan muncul di halaman PIC.\n" +
+        "2. Anda TIDAK BISA mengubah jadwal lagi.\n\n" +
+        "Lanjutkan?"
+    );
+
+    if (isSure) {
+        saveProjectSchedule('published');
+    }
+}
+
+async function saveProjectSchedule(statusType) {
+    if (!currentProject) return;
+
+    // Ambil data terbaru dari input form agar tidak ada yang terlewat
+    applyTaskSchedule(); // Ini akan memvalidasi dan mengupdate currentTasks
+    
+    // Jika applyTaskSchedule gagal (ada error validasi), jangan lanjut simpan
+    // (Anda mungkin perlu memodifikasi applyTaskSchedule agar me-return true/false)
+    
+    const saveStatus = document.getElementById('saveStatus');
+    if(saveStatus) saveStatus.innerHTML = '⏳ Sedang menyimpan...';
+
+    // Siapkan Data yang akan dikirim (Payload)
+    const payload = {
+        ulok: currentProject.ulok,          // ID Proyek
+        lingkup: currentProject.work,       // ME atau Sipil
+        tasks: currentTasks,                // Array Tahapan
+        status_jadwal: statusType,          // 'draft' atau 'published'
+        updated_at: new Date().toISOString()
+    };
+
+    console.log("📤 Mengirim data:", payload);
+
+    try {
+        const response = await fetch(ENDPOINTS.saveSchedule, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'Gagal menyimpan data');
+        }
+
+        // Sukses
+        if(saveStatus) {
+            saveStatus.innerHTML = statusType === 'published' 
+                ? '✅ Berhasil Terbit & Terkunci!' 
+                : '✅ Draft Berhasil Disimpan';
+            saveStatus.style.color = '#2f855a';
+        }
+
+        alert(statusType === 'published' 
+            ? "Sukses! Jadwal telah diterbitkan ke PIC." 
+            : "Sukses! Draft jadwal telah disimpan.");
+
+        // Jika status published, kunci tampilan
+        if (statusType === 'published') {
+            lockInterface();
+        }
+
+    } catch (error) {
+        console.error("❌ Error saving:", error);
+        if(saveStatus) {
+            saveStatus.innerHTML = '❌ Gagal Menyimpan';
+            saveStatus.style.color = '#e53e3e';
+        }
+        alert("Gagal menyimpan: " + error.message);
+    }
+}
+// 3. Fungsi untuk mematikan form (Read-Only)
+function lockInterface() {
+    // Matikan semua input number
+    const inputs = document.querySelectorAll('.task-day-input');
+    inputs.forEach(input => {
+        input.disabled = true;
+        input.style.backgroundColor = "#e9ecef";
+        input.style.cursor = "not-allowed";
+    });
+
+    // Sembunyikan tombol aksi
+    const actionContainer = document.querySelector('.task-input-actions');
+    if (actionContainer) {
+        actionContainer.innerHTML = `
+            <div style="background: #c6f6d5; color: #22543d; padding: 10px; border-radius: 6px; width: 100%; text-align: center;">
+                🔒 <strong>Jadwal Terkunci</strong><br>
+                Data sudah diterbitkan dan tidak dapat diubah lagi.
+            </div>
+        `;
+    }
+}
+
 // ==================== API DATA HELPERS ====================
-function updateProjectFromSpk(spkData) {
-    if (!spkData || !currentProject) return;
+function updateProjectFromRab(rabData) {
+    if (!rabData || !currentProject) return;
 
     const getFirstNonEmpty = (keys) => {
         for (const key of keys) {
-            const val = spkData[key];
+            const val = rabData[key];
             if (val !== undefined && val !== null && String(val).trim() !== '') return val;
         }
         return undefined;
@@ -735,7 +844,7 @@ function applyTaskSchedule() {
     updateStats();
     document.getElementById('exportButtons').style.display = 'flex';
 
-    alert('✅ Jadwal berhasil diterapkan!');
+    return true;
 }
 
 function resetTaskSchedule() {

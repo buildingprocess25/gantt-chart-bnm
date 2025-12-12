@@ -1,7 +1,7 @@
 // ==================== API CONFIGURATION ====================
 const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
-    ulokList: `${API_BASE_URL}/get_all_ulok_rab`,
+    ulokList: `${API_BASE_URL}/get_ulok_by_email`,
     ganttData: `${API_BASE_URL}/get_gantt_data`,
 };
 
@@ -197,22 +197,52 @@ function parseProjectFromLabel(label, value) {
 }
 
 // ==================== FETCH DATA FROM API ====================
+// ==================== FETCH DATA FROM API ====================
 async function loadDataAndInit() {
     try {
         showLoadingMessage();
 
-        const response = await fetch(ENDPOINTS.ulokList);
+        // 1. AMBIL EMAIL DARI STORAGE
+        // Pastikan key 'email' sesuai dengan yang Anda simpan saat proses Login
+        const userEmail = sessionStorage.getItem('loggedInUserEmail'); 
+
+        // Cek validasi session
+        if (!userEmail) {
+            console.warn("⚠️ Email tidak ditemukan di session.");
+            // Opsional: Redirect ke halaman login jika email kosong
+            window.location.href = 'https://gantt-chart-bnm.vercel.app'; 
+            return;
+        }
+
+        console.log("📧 Mengambil data untuk email:", userEmail);
+
+        // 2. TAMBAHKAN PARAMETER EMAIL KE URL
+        // Endpoint menjadi: .../get_ulok_by_email?email=user@contoh.com
+        const urlWithParam = `${ENDPOINTS.ulokList}?email=${encodeURIComponent(userEmail)}`;
+
+        const response = await fetch(urlWithParam);
+        
         if (!response.ok) {
-            throw new Error(`HTTP Error: ${response.status}`);
+            // Menangkap error 400 atau 500
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.message || `HTTP Error: ${response.status}`);
         }
 
         const apiData = await response.json();
         console.log("✅ Data dari API:", apiData);
 
+        if (!Array.isArray(apiData)) {
+            throw new Error("Format data API tidak valid (harus array)");
+        }
+
         projects = apiData.map(item => parseProjectFromLabel(item.label, item.value));
 
         console.log("✅ Projects loaded:", projects.length);
-        console.log("📋 Sample project:", projects[0]);
+        
+        if (projects.length === 0) {
+            showErrorMessage("Tidak ada data proyek ditemukan untuk email ini.");
+            return;
+        }
 
         initChart();
 
@@ -379,15 +409,15 @@ function renderApiData() {
             </button>
         </div>
     `;
-    html += '</div>';
+    html += '</div>'; // penutup task-input-card
     html += `
-        <div class="task-input-actions">
+        <div class="task-input-actions" style="border-top: none; padding-top: 0;">
             <button class="btn-publish" onclick="confirmAndPublish()">
-                🔒 Kunci Jadwal
+                Kunci Jadwal
             </button>
         </div>
     `;
-
+    html += '</div>';
     container.innerHTML = html;
 }
 
@@ -447,38 +477,10 @@ function renderProjectInfo() {
             <div class="project-value">${currentProject.work}</div>
         </div>
         <div class="project-detail">
-            <div class="project-label">Kontraktor</div>
-            <div class="project-value">${currentProject.contractor}</div>
-        </div>
-    `;
-
-    if (currentProject.regional) {
-        html += `
-        <div class="project-detail">
-            <div class="project-label">Regional</div>
-            <div class="project-value">${currentProject.regional}</div>
-        </div>
-        `;
-    }
-
-    if (currentProject.area) {
-        html += `
-        <div class="project-detail">
-            <div class="project-label">Area</div>
-            <div class="project-value">${currentProject.area}</div>
-        </div>
-        `;
-    }
-
-    if (currentProject.alamat) {
-        html += `
-        <div class="project-detail">
             <div class="project-label">Alamat</div>
             <div class="project-value">${currentProject.alamat}</div>
         </div>
-        `;
-    }
-
+    `;
     info.innerHTML = html;
 }
 
@@ -605,8 +607,8 @@ function updateProjectFromRab(rabData) {
         return undefined;
     };
 
-    const contractor = getFirstNonEmpty(['Kontraktor', 'contractor', 'kontraktor', 'Nama Kontraktor']);
-    if (contractor) currentProject.contractor = contractor;
+    const alamat = getFirstNonEmpty(['Alamat', 'alamat']);
+    if (alamat) currentProject.alamat = alamat;
 
     const durasiRaw = getFirstNonEmpty(['Durasi', 'durasi']);
     const durasiNum = durasiRaw ? parseInt(durasiRaw, 10) : null;
@@ -921,7 +923,7 @@ function exportToExcel() {
         ["Jenis Proyek", currentProject.projectType],
         ["Nama Toko", currentProject.store],
         ["Pekerjaan", currentProject.work],
-        ["Kontraktor", currentProject.contractor],
+        ["Alamat", currentProject.alamat],
         [],
         ["No", "Tahapan", "Mulai", "Selesai", "Durasi", "Status"]
     ];

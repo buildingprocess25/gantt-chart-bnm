@@ -162,7 +162,7 @@ class GoogleServiceProvider:
     
     
     
-    # Mengambil semua data rab untuk dropdown
+    # Mengambil semua data rab untuk dropdown (HO)
 
     def get_all_rab_ulok(self):
         """
@@ -314,7 +314,7 @@ class GoogleServiceProvider:
             print(f"Error getting Gantt data: {e}")
             return {"rab": None, "filtered_categories": []}
 
-    # get ulok by email pembuat
+    # get ulok by email pembuat (Buat kontraktor)
     def get_ulok_by_email(self, email):
         """
         Mengambil daftar unik Nomor Ulok beserta Proyek, Nama Toko, dan Lingkup Pekerjaan 

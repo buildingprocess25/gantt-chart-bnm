@@ -1240,13 +1240,13 @@ def get_gantt_data():
         result = google_provider.get_gantt_data_by_ulok(ulok, lingkup)
         
         # Validasi jika data tidak ditemukan
-        if not result['spk'] and not result['rab']:
+        if not result['rab']:
             return jsonify({"status": "error", "message": "Data tidak ditemukan untuk kombinasi Ulok dan Lingkup tersebut"}), 404
             
         return jsonify({
             "status": "success",
-            "spk": result['spk'],
-            "rab": result['rab'] # Ini sekarang hanya berisi list kategori (array of strings)
+            "rab": result['rab'],
+            "filtered_categories": result['filtered_categories']
         }), 200
         
     except Exception as e:

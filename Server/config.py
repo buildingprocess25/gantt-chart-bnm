@@ -25,6 +25,7 @@ KONTRAKTOR_SHEET_NAME = "Monitoring Kontraktor"
 # Nama sheet untuk Pengawasan
 INPUT_PIC_SHEET_NAME = "InputPIC"
 PENUGASAN_SHEET_NAME = "Penugasan"
+GANTT_CHART_SHEET_NAME = "gantt_chart"
 # Nama sheet dinamis akan ditangani di kode, contoh: "DataH2", "SerahTerima"
 
 # --- Nama Kolom ---

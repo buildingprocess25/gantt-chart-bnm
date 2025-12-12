@@ -540,7 +540,8 @@
         }
 
         .btn-apply-schedule,
-        .btn-reset-schedule, {
+        .btn-reset-schedule,
+        .btn-publish, {
             padding: 10px 20px;
             border: none;
             border-radius: 6px;

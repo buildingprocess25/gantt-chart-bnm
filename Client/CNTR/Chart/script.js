@@ -397,8 +397,6 @@ function renderApiData() {
             </div>
         `;
     });
-
-    html += '</div>';
     html += `
         <div class="task-input-actions">
             <button class="btn-apply-schedule" onclick="applyTaskSchedule()">
@@ -409,7 +407,6 @@ function renderApiData() {
             </button>
         </div>
     `;
-    html += '</div>';
     html += `
         <div class="task-input-actions">
             <button class="btn-publish" onclick="confirmAndPublish()">

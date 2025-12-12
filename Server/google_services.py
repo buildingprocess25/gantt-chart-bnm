@@ -159,14 +159,14 @@ class GoogleServiceProvider:
             print(f"Error saat mengambil data SPK by cabang: {e}")
             return []
 
-    def get_all_spk_ulok(self):
+    def get_all_rab_ulok(self):
         """
         Mengambil daftar unik Nomor Ulok beserta Proyek, Nama Toko, dan Lingkup Pekerjaan 
-        dari sheet SPK_Data untuk dropdown (bukan dari RAB/Form2).
+        dari sheet APPROVED_DATA_SHEET_NAME untuk dropdown (bukan dari RAB/Form2).
         """
         try:
-            # UBAH DISINI: Gunakan worksheet yang mengarah ke SPK_DATA_SHEET_NAME
-            worksheet = self.sheet.worksheet(config.SPK_DATA_SHEET_NAME)
+            # UBAH DISINI: Gunakan worksheet yang mengarah ke APPROVED_DATA_SHEET_NAME
+            worksheet = self.sheet.worksheet(config.APPROVED_DATA_SHEET_NAME)
             records = worksheet.get_all_records()
 
             ulok_list = []

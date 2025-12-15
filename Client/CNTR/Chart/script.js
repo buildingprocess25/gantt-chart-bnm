@@ -252,12 +252,19 @@ async function fetchGanttDataForSelection(selectedValue) {
 
     const { ulok, lingkup } = extractUlokAndLingkup(selectedValue);
     isLoadingGanttData = true;
+    ganttApiError = null; // Reset error sebelum mulai
     renderApiData();
 
     const url = `${ENDPOINTS.ganttData}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(lingkup)}`;
 
     try {
         const response = await fetch(url);
+        
+        // Jika status 404 (Data tidak ditemukan), anggap sebagai proyek baru (bukan error)
+        if (response.status === 404) {
+            throw new Error("DATA_NOT_FOUND");
+        }
+
         const data = await response.json();
 
         if (!response.ok) throw new Error(data.message || 'Error fetch');
@@ -269,7 +276,7 @@ async function fetchGanttDataForSelection(selectedValue) {
             updateProjectFromRab(data.rab);
         }
 
-        // === LOGIKA BARU: CEK APAKAH SUDAH ADA DATA TERSIMPAN ===
+        // === CEK APAKAH ADA DATA DI DATABASE ===
         if (data.existing_tasks && Array.isArray(data.existing_tasks) && data.existing_tasks.length > 0) {
             console.log("📥 Data tasks ditemukan dari database.");
             
@@ -286,8 +293,7 @@ async function fetchGanttDataForSelection(selectedValue) {
             projectTasks[selectedValue] = currentTasks;
             hasUserInput = true;
 
-            // Cek apakah status sudah Locked/Published
-            // Asumsi backend mengembalikan flag is_locked atau status_jadwal
+            // Cek status terkunci
             if (data.status_jadwal === 'published' || data.is_locked === true) {
                 isProjectLocked = true;
             } else {
@@ -295,36 +301,41 @@ async function fetchGanttDataForSelection(selectedValue) {
             }
 
         } else {
-            // Jika belum ada data di DB, gunakan Template Kosong
-            console.log("📝 Belum ada data tersimpan, menggunakan template.");
-            hasUserInput = false;
-            isProjectLocked = false;
+            // Jika sukses fetch tapi data kosong (Proyek baru)
+            throw new Error("DATA_EMPTY"); 
+        }
+
+    } catch (error) {
+        // === FALLBACK: JIKA ERROR / DATA TIDAK ADA, GUNAKAN TEMPLATE ===
+        console.warn('⚠️ Menggunakan template default (Data server tidak ditemukan/error):', error.message);
+        
+        // Reset Error variable agar form tetap muncul (PENTING!)
+        ganttApiError = null; 
+
+        if (currentProject) {
             // Reset ke template
-             if (currentProject.work === 'ME') {
+            if (currentProject.work === 'ME') {
                 currentTasks = JSON.parse(JSON.stringify(taskTemplateME));
             } else {
                 currentTasks = JSON.parse(JSON.stringify(taskTemplateSipil));
             }
             projectTasks[selectedValue] = currentTasks;
+            hasUserInput = false;
+            isProjectLocked = false;
         }
 
+    } finally {
+        isLoadingGanttData = false;
+        
         renderProjectInfo();
-        renderApiData(); // Ini akan cek isProjectLocked
+        renderApiData(); // Sekarang form akan muncul meskipun fetch gagal
         
         if (hasUserInput) {
             renderChart();
         } else {
             showPleaseInputMessage();
         }
-        
         updateStats();
-
-    } catch (error) {
-        console.error('❌ Error fetching Gantt data:', error);
-        ganttApiError = error.message;
-        renderApiData();
-    } finally {
-        isLoadingGanttData = false;
     }
 }
 

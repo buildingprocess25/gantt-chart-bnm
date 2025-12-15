@@ -427,7 +427,11 @@ async function changeUlok() {
     const selectedUlok = ulokSelect.value;
 
     if (!selectedUlok) {
-        showSelectProjectMessage();
+        currentProject = null; 
+        currentTasks = [];   
+        hasUserInput = false;   
+        showSelectProjectMessage(); 
+        renderApiData();            
         return;
     }
 

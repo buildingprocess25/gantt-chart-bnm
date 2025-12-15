@@ -475,24 +475,46 @@ function confirmAndPublish() {
 
 async function saveProjectSchedule() {
     if (!currentProject) return;
-    const userEmail = sessionStorage.getItem('loggedInUserEmail');
-    const payload = {
-        Nomor_Ulok: currentProject.ulokClean, 
-        Lingkup_Pekerjaan: currentProject.work,   
-        email: userEmail,
 
-        full_ulok: currentProject.ulok,
+    // 1. Validasi Data Sebelum Kirim
+    // Pastikan data tidak kosong/undefined. Jika kosong, ambil dari data mentah.
+    const finalUlok = currentProject.ulokClean || currentProject.ulok || "";
+    const finalLingkup = currentProject.work || "Sipil";
+    const userEmail = sessionStorage.getItem('loggedInUserEmail') || "";
+
+    if (!finalUlok || !finalLingkup) {
+        alert("⚠️ Data Proyek (Nomor Ulok/Lingkup) tidak terdeteksi. Silakan refresh halaman dan pilih ulang proyek.");
+        return;
+    }
+
+    // 2. Siapkan Payload dengan BEBERAPA VARIASI KEY
+    // Kita kirimkan variasi dengan SPASI dan UNDERSCORE agar server pasti bisa membacanya
+    const payload = {
+        // Variasi 1: Sesuai pesan error (Pakai Spasi) -> Perlu tanda kutip
+        "Nomor Ulok": finalUlok,
         
-        tasks: currentTasks.map(t => ({
+        // Variasi 2: Pakai Underscore (Standard API)
+        "Nomor_Ulok": finalUlok,
+        "ulok": finalUlok, // Jaga-jaga jika backend pakai nama simple
+
+        // Data Lingkup
+        "Lingkup_Pekerjaan": finalLingkup,
+        "lingkup": finalLingkup,
+
+        // Data Lainnya
+        "email": userEmail,
+        "full_ulok": currentProject.ulok,
+        "tasks": currentTasks.map(t => ({
             id: t.id,
             name: t.name,
             start: t.start,
             duration: t.duration,
             dependencies: t.dependencies
         })),
-        status_jadwal: 'published'
+        "status_jadwal": 'published'
     };
 
+    // UI Loading
     const btnPublish = document.querySelector('.btn-publish');
     const originalText = btnPublish ? btnPublish.innerText : 'Kunci Jadwal';
     if(btnPublish) {
@@ -501,7 +523,8 @@ async function saveProjectSchedule() {
     }
 
     try {
-        console.log("📤 Mengirim data payload:", payload); // Debugging: Cek console browser untuk melihat data yang dikirim
+        // Debugging: Lihat di Console Browser (F12) apa yang dikirim
+        console.log("📤 Mengirim Payload Lengkap:", payload);
 
         const response = await fetch(ENDPOINTS.insertData, {
             method: 'POST',
@@ -512,13 +535,13 @@ async function saveProjectSchedule() {
         const result = await response.json();
 
         if (!response.ok) {
-            throw new Error(result.message || 'Gagal menyimpan data');
+            throw new Error(result.message || 'Gagal menyimpan data dari server');
         }
 
         // === SUKSES ===
         alert("✅ Sukses! Jadwal berhasil diterbitkan.");
         
-        // Kunci Interface
+        // Update Status & Kunci Interface
         isProjectLocked = true;
         renderApiData(); 
         renderChart(); 

@@ -476,45 +476,44 @@ function confirmAndPublish() {
 async function saveProjectSchedule() {
     if (!currentProject) return;
 
-    // 1. Validasi Data Sebelum Kirim
-    // Pastikan data tidak kosong/undefined. Jika kosong, ambil dari data mentah.
-    const finalUlok = currentProject.ulokClean || currentProject.ulok || "";
-    const finalLingkup = currentProject.work || "Sipil";
-    const userEmail = sessionStorage.getItem('loggedInUserEmail') || "";
+    const userEmail = sessionStorage.getItem('loggedInUserEmail') || "user@unknown.com";
 
-    if (!finalUlok || !finalLingkup) {
-        alert("⚠️ Data Proyek (Nomor Ulok/Lingkup) tidak terdeteksi. Silakan refresh halaman dan pilih ulang proyek.");
+    if (!currentProject.ulokClean || !currentProject.work) {
+        alert("⚠️ Data proyek tidak lengkap. Silakan refresh halaman.");
         return;
     }
 
-    // 2. Siapkan Payload dengan BEBERAPA VARIASI KEY
-    // Kita kirimkan variasi dengan SPASI dan UNDERSCORE agar server pasti bisa membacanya
     const payload = {
-        // Variasi 1: Sesuai pesan error (Pakai Spasi) -> Perlu tanda kutip
-        "Nomor Ulok": finalUlok,
-        
-        // Variasi 2: Pakai Underscore (Standard API)
-        "Nomor_Ulok": finalUlok,
-        "ulok": finalUlok, // Jaga-jaga jika backend pakai nama simple
-
-        // Data Lingkup
-        "Lingkup_Pekerjaan": finalLingkup,
-        "lingkup": finalLingkup,
-
-        // Data Lainnya
-        "email": userEmail,
-        "full_ulok": currentProject.ulok,
-        "tasks": currentTasks.map(t => ({
-            id: t.id,
-            name: t.name,
-            start: t.start,
-            duration: t.duration,
-            dependencies: t.dependencies
-        })),
-        "status_jadwal": 'published'
+        "Nomor Ulok": currentProject.ulokClean, // Key pakai SPASI sesuai request
+        "Lingkup_Pekerjaan": currentProject.work.toUpperCase(), // Contoh: "SIPIL"
+        "Status": "Active",
+        "Email_Pembuat": userEmail,
+        "Proyek": currentProject.projectType || "Reguler",
+        "Alamat": currentProject.alamat || "-",
+        "Cabang": "HEAD OFFICE", // Default (bisa disesuaikan jika ada datanya)
+        "Nama_Toko": currentProject.store || "-",
+        "Nama_Kontraktor": "PT KONTRAKTOR", // Default (atau ambil dari session jika ada)
     };
 
-    // UI Loading
+    const projectStartDate = new Date(currentProject.startDate); // Pastikan format YYYY-MM-DD
+
+    currentTasks.forEach((task) => {
+
+        const tStart = new Date(projectStartDate);
+        tStart.setDate(projectStartDate.getDate() + (task.start - 1));
+
+        const durationToAdd = task.duration > 0 ? task.duration - 1 : 0;
+        const tEnd = new Date(tStart);
+        tEnd.setDate(tStart.getDate() + durationToAdd);
+
+        const formatDateISO = (date) => date.toISOString().split('T')[0];
+
+        payload[`Kategori_${task.id}`] = task.name;
+        payload[`Hari_Mulai_Kategori_${task.id}`] = formatDateISO(tStart);
+        payload[`Hari_Selesai_Kategori_${task.id}`] = formatDateISO(tEnd);
+        payload[`Keterlambatan_Kategori_${task.id}`] = "0"; // Default 0
+    });
+
     const btnPublish = document.querySelector('.btn-publish');
     const originalText = btnPublish ? btnPublish.innerText : 'Kunci Jadwal';
     if(btnPublish) {
@@ -523,8 +522,7 @@ async function saveProjectSchedule() {
     }
 
     try {
-        // Debugging: Lihat di Console Browser (F12) apa yang dikirim
-        console.log("📤 Mengirim Payload Lengkap:", payload);
+        console.log("📤 Mengirim Payload Final:", payload); // Cek console untuk memastikan format benar
 
         const response = await fetch(ENDPOINTS.insertData, {
             method: 'POST',
@@ -535,13 +533,11 @@ async function saveProjectSchedule() {
         const result = await response.json();
 
         if (!response.ok) {
-            throw new Error(result.message || 'Gagal menyimpan data dari server');
+            throw new Error(result.message || 'Gagal menyimpan data ke server');
         }
 
-        // === SUKSES ===
-        alert("✅ Sukses! Jadwal berhasil diterbitkan.");
-        
-        // Update Status & Kunci Interface
+        alert("✅ Sukses! Data berhasil disimpan ke Database/Sheets.");
+
         isProjectLocked = true;
         renderApiData(); 
         renderChart(); 

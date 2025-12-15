@@ -3,6 +3,7 @@ const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
     ulokList: `${API_BASE_URL}/get_ulok_by_email`,
     ganttData: `${API_BASE_URL}/get_gantt_data`,
+    insertData: `${API_BASE_URL}/gantt/insert`,
 };
 
 let projects = [];

@@ -269,12 +269,22 @@ async function fetchGanttDataForSelection(selectedValue) {
 
         ganttApiData = data;
 
+        const rawStatus = data.Status || data.status || data.status_jadwal || '';
+        const normalizedStatus = String(rawStatus).trim().toLowerCase();
+
+        if (normalizedStatus === 'terkunci' || normalizedStatus === 'locked' || normalizedStatus === 'published' || data.is_locked === true) {
+            isProjectLocked = true;
+            console.log("🔒 Status Proyek: TERKUNCI (Loaded from DB)");
+        } else {
+            isProjectLocked = false;
+            console.log("🔓 Status Proyek: ACTIVE");
+        }
+
         if (currentProject && data?.rab) {
             updateProjectFromRab(data.rab);
         }
 
         if (data.existing_tasks && Array.isArray(data.existing_tasks) && data.existing_tasks.length > 0) {
-            console.log("📥 Data ditemukan. Status:", data.Status || data.status_jadwal);
             
             currentTasks = data.existing_tasks.map(t => ({
                 id: t.id,
@@ -288,15 +298,6 @@ async function fetchGanttDataForSelection(selectedValue) {
             projectTasks[selectedValue] = currentTasks;
             hasUserInput = true;
 
-            const dbStatus = data.Status || data.status || data.status_jadwal || '';
-            
-            if (dbStatus === 'Terkunci' || dbStatus === 'published' || data.is_locked === true) {
-                isProjectLocked = true;
-                console.log("🔒 Project status is Locked/Terkunci");
-            } else {
-                isProjectLocked = false;
-            }
-
         } else {
             throw new Error("DATA_EMPTY"); 
         }
@@ -306,6 +307,7 @@ async function fetchGanttDataForSelection(selectedValue) {
         ganttApiError = null; 
 
         if (currentProject) {
+
             if (currentProject.work === 'ME') {
                 currentTasks = JSON.parse(JSON.stringify(taskTemplateME));
             } else {
@@ -313,14 +315,16 @@ async function fetchGanttDataForSelection(selectedValue) {
             }
             projectTasks[selectedValue] = currentTasks;
             hasUserInput = false;
-            isProjectLocked = false; // Default tidak terkunci
+
+            isProjectLocked = false; 
         }
 
     } finally {
         isLoadingGanttData = false;
         renderProjectInfo();
-        renderApiData(); // Render ulang UI (Form akan hilang jika isProjectLocked = true)
-        
+
+        renderApiData(); 
+
         if (hasUserInput) {
             renderChart();
         } else {
@@ -359,7 +363,6 @@ function renderApiData() {
 
     // 4. Kondisi TERKUNCI (Published)
     if (isProjectLocked) {
-        // Hapus inputan form, hanya tampilkan pesan
         container.innerHTML = `
             <div class="api-card" style="border: 2px solid #48bb78; background: #f0fff4;">
                 <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -370,7 +373,7 @@ function renderApiData() {
                 </div>
             </div>
         `;
-        document.getElementById('exportButtons').style.display = 'flex'; // Tetap bisa export
+        document.getElementById('exportButtons').style.display = 'flex'; 
         return;
     }
 

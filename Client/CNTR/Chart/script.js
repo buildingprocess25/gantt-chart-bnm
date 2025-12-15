@@ -3,7 +3,7 @@ const API_BASE_URL = "https://gantt-chart-bnm.onrender.com/api";
 const ENDPOINTS = {
     ulokList: `${API_BASE_URL}/get_ulok_by_email`,
     ganttData: `${API_BASE_URL}/get_gantt_data`,
-    insertData: `${API_BASE_URL}/gantt/insert`,
+    insertData: `${API_BASE_URL}/gantt/insert`, // Endpoint Insert
 };
 
 let projects = [];
@@ -13,6 +13,7 @@ let ganttApiData = null;
 let ganttApiError = null;
 let isLoadingGanttData = false;
 let hasUserInput = false; // Track apakah user sudah input jadwal
+let isProjectLocked = false; // Track status dikunci/belum
 
 // ==================== TASK TEMPLATES ====================
 const taskTemplateME = [
@@ -84,21 +85,6 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
-function parseDateValue(raw) {
-    if (!raw) return null;
-    const iso = new Date(raw);
-    if (!Number.isNaN(iso.getTime())) return iso;
-
-    const match = String(raw).trim().match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
-    if (match) {
-        const [_, d, m, y] = match;
-        const year = y.length === 2 ? `20${y}` : y;
-        const parsed = new Date(`${year}-${m}-${d}`);
-        if (!Number.isNaN(parsed.getTime())) return parsed;
-    }
-    return null;
-}
-
 function showLoadingMessage() {
     const chart = document.getElementById('ganttChart');
     chart.innerHTML = `
@@ -138,6 +124,7 @@ function showSelectProjectMessage() {
     ganttApiData = null;
     ganttApiError = null;
     hasUserInput = false;
+    isProjectLocked = false;
     renderApiData();
 }
 
@@ -170,7 +157,6 @@ function parseProjectFromLabel(label, value) {
     if (parts.length >= 3) {
         projectName = parts[1].replace(/\(ME\)|\(Sipil\)/gi, '').trim();
         storeName = parts[2].trim();
-
         if (label.toUpperCase().includes('RENOVASI') || ulokNumber.includes('-R')) {
             projectType = "Renovasi";
         }
@@ -187,58 +173,40 @@ function parseProjectFromLabel(label, value) {
         work: workType,
         lingkup: workType,
         projectType: projectType,
-        contractor: "Belum Ditentukan",
         startDate: new Date().toISOString().split('T')[0],
         durasi: workType === 'ME' ? 37 : 184,
         alamat: "",
-        status: "Berjalan",
-        regional: "",
-        area: ""
+        status: "Berjalan"
     };
 }
 
 // ==================== FETCH DATA FROM API ====================
-// ==================== FETCH DATA FROM API ====================
 async function loadDataAndInit() {
     try {
         showLoadingMessage();
-
-        // 1. AMBIL EMAIL DARI STORAGE
-        // Pastikan key 'email' sesuai dengan yang Anda simpan saat proses Login
         const userEmail = sessionStorage.getItem('loggedInUserEmail'); 
 
-        // Cek validasi session
         if (!userEmail) {
             console.warn("⚠️ Email tidak ditemukan di session.");
-            // Opsional: Redirect ke halaman login jika email kosong
             window.location.href = 'https://gantt-chart-bnm.vercel.app'; 
             return;
         }
 
-        console.log("📧 Mengambil data untuk email:", userEmail);
-
-        // 2. TAMBAHKAN PARAMETER EMAIL KE URL
-        // Endpoint menjadi: .../get_ulok_by_email?email=user@contoh.com
         const urlWithParam = `${ENDPOINTS.ulokList}?email=${encodeURIComponent(userEmail)}`;
-
         const response = await fetch(urlWithParam);
         
         if (!response.ok) {
-            // Menangkap error 400 atau 500
             const errData = await response.json().catch(() => ({}));
             throw new Error(errData.message || `HTTP Error: ${response.status}`);
         }
 
         const apiData = await response.json();
-        console.log("✅ Data dari API:", apiData);
 
         if (!Array.isArray(apiData)) {
             throw new Error("Format data API tidak valid (harus array)");
         }
 
         projects = apiData.map(item => parseProjectFromLabel(item.label, item.value));
-
-        console.log("✅ Projects loaded:", projects.length);
         
         if (projects.length === 0) {
             showErrorMessage("Tidak ada data proyek ditemukan untuk email ini.");
@@ -258,6 +226,7 @@ function initChart() {
     ulokSelect.innerHTML = '<option value="">-- Pilih Proyek --</option>';
 
     projects.forEach(project => {
+        // Reset Template Default
         if (project.work === 'ME') {
             projectTasks[project.ulok] = JSON.parse(JSON.stringify(taskTemplateME));
         } else {
@@ -277,22 +246,12 @@ function initChart() {
 async function fetchGanttDataForSelection(selectedValue) {
     if (!selectedValue) {
         ganttApiData = null;
-        ganttApiError = null;
         renderApiData();
         return;
     }
 
     const { ulok, lingkup } = extractUlokAndLingkup(selectedValue);
-
-    if (!ulok || !lingkup) {
-        ganttApiData = null;
-        ganttApiError = 'Parameter ulok atau lingkup tidak valid.';
-        renderApiData();
-        return;
-    }
-
     isLoadingGanttData = true;
-    ganttApiError = null;
     renderApiData();
 
     const url = `${ENDPOINTS.ganttData}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(lingkup)}`;
@@ -301,30 +260,71 @@ async function fetchGanttDataForSelection(selectedValue) {
         const response = await fetch(url);
         const data = await response.json();
 
-        if (!response.ok || data?.status === 'error') {
-            const message = data?.message || data?.error || `HTTP ${response.status}`;
-            throw new Error(message);
-        }
+        if (!response.ok) throw new Error(data.message || 'Error fetch');
 
         ganttApiData = data;
 
+        // Update Project Info dari RAB (alamat, dll)
         if (currentProject && data?.rab) {
             updateProjectFromRab(data.rab);
         }
 
+        // === LOGIKA BARU: CEK APAKAH SUDAH ADA DATA TERSIMPAN ===
+        if (data.existing_tasks && Array.isArray(data.existing_tasks) && data.existing_tasks.length > 0) {
+            console.log("📥 Data tasks ditemukan dari database.");
+            
+            // Map data dari DB ke struktur tasks kita
+            currentTasks = data.existing_tasks.map(t => ({
+                id: t.id,
+                name: t.name,
+                start: t.start,
+                duration: t.duration,
+                dependencies: t.dependencies || [],
+                inputData: { startDay: t.start, endDay: (t.start + t.duration - 1) }
+            }));
+            
+            projectTasks[selectedValue] = currentTasks;
+            hasUserInput = true;
+
+            // Cek apakah status sudah Locked/Published
+            // Asumsi backend mengembalikan flag is_locked atau status_jadwal
+            if (data.status_jadwal === 'published' || data.is_locked === true) {
+                isProjectLocked = true;
+            } else {
+                isProjectLocked = false;
+            }
+
+        } else {
+            // Jika belum ada data di DB, gunakan Template Kosong
+            console.log("📝 Belum ada data tersimpan, menggunakan template.");
+            hasUserInput = false;
+            isProjectLocked = false;
+            // Reset ke template
+             if (currentProject.work === 'ME') {
+                currentTasks = JSON.parse(JSON.stringify(taskTemplateME));
+            } else {
+                currentTasks = JSON.parse(JSON.stringify(taskTemplateSipil));
+            }
+            projectTasks[selectedValue] = currentTasks;
+        }
+
         renderProjectInfo();
-        renderApiData(); // Re-render form dengan tasks yang benar
+        renderApiData(); // Ini akan cek isProjectLocked
+        
         if (hasUserInput) {
             renderChart();
+        } else {
+            showPleaseInputMessage();
         }
+        
         updateStats();
+
     } catch (error) {
         console.error('❌ Error fetching Gantt data:', error);
-        ganttApiData = null;
-        ganttApiError = error.message || 'Gagal mengambil data Gantt.';
+        ganttApiError = error.message;
+        renderApiData();
     } finally {
         isLoadingGanttData = false;
-        renderApiData();
     }
 }
 
@@ -332,67 +332,65 @@ function renderApiData() {
     const container = document.getElementById('apiData');
     if (!container) return;
 
+    // 1. Kondisi Loading
     if (isLoadingGanttData) {
         container.innerHTML = `
             <div class="api-card">
-                <div class="api-card-title">Memuat data RAB...</div>
-                <div class="api-row">Mohon tunggu, sedang mengambil data terbaru.</div>
-            </div>
-        `;
+                <div class="api-card-title">Memuat data...</div>
+                <div class="api-row">Mohon tunggu sebentar.</div>
+            </div>`;
         return;
     }
 
+    // 2. Kondisi Error
     if (ganttApiError) {
         container.innerHTML = `
             <div class="api-card api-error">
                 <div class="api-card-title">Gagal memuat data</div>
                 <div class="api-row">${escapeHtml(ganttApiError)}</div>
-            </div>
-        `;
+            </div>`;
         return;
     }
 
-    if (!currentProject || !currentTasks.length) {
+    // 3. Kondisi Belum Pilih Proyek
+    if (!currentProject) return;
+
+    // 4. Kondisi TERKUNCI (Published)
+    if (isProjectLocked) {
+        // Hapus inputan form, hanya tampilkan pesan
         container.innerHTML = `
-            <div class="api-card">
-                <div class="api-card-title">Input Pengerjaan Tahapan</div>
-                <div class="api-row">Pilih No. Ulok untuk menginput jadwal pengerjaan.</div>
+            <div class="api-card" style="border: 2px solid #48bb78; background: #f0fff4;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <h3 style="color: #2f855a; margin: 0 0 5px 0;">✅ Jadwal Terkunci</h3>
+                        <p style="margin: 0; color: #276749;">Data jadwal sudah diterbitkan dan tidak dapat diubah.</p>
+                    </div>
+                </div>
             </div>
         `;
+        document.getElementById('exportButtons').style.display = 'flex'; // Tetap bisa export
         return;
     }
 
-    // Render form input untuk setiap tahapan
+    // 5. Kondisi Normal (Input Form)
     let html = '<div class="api-card task-input-card">';
     html += '<div class="api-card-title">Input Pengerjaan Tahapan</div>';
     html += '<div class="task-input-container">';
 
     currentTasks.forEach((task) => {
-        // Jika sudah ada input data, gunakan itu. Jika belum, tampilkan 0
         const taskData = task.inputData || { startDay: 0, endDay: 0 };
-        
         html += `
             <div class="task-input-row">
                 <div class="task-input-label">${escapeHtml(task.name)}</div>
                 <div class="task-input-fields">
                     <div class="input-group">
                         <label>H</label>
-                        <input type="number" 
-                            class="task-day-input" 
-                            id="task-start-${task.id}" 
-                            value="${taskData.startDay}" 
-                            min="0" 
-                            placeholder="0">
+                        <input type="number" class="task-day-input" id="task-start-${task.id}" value="${taskData.startDay}" min="0">
                     </div>
-                    <span class="input-separator">sampai</span>
+                    <span class="input-separator">s/d</span>
                     <div class="input-group">
                         <label>H</label>
-                        <input type="number" 
-                            class="task-day-input" 
-                            id="task-end-${task.id}" 
-                            value="${taskData.endDay}" 
-                            min="0" 
-                            placeholder="0">
+                        <input type="number" class="task-day-input" id="task-end-${task.id}" value="${taskData.endDay}" min="0">
                     </div>
                 </div>
             </div>
@@ -402,20 +400,11 @@ function renderApiData() {
     html += '</div>';
     html += `
         <div class="task-input-actions">
-            <button class="btn-apply-schedule" onclick="applyTaskSchedule()">
-                Terapkan Jadwal
-            </button>
-            <button class="btn-reset-schedule" onclick="resetTaskSchedule()">
-                Reset
-            </button>
+            <button class="btn-apply-schedule" onclick="applyTaskSchedule()">Terapkan Jadwal</button>
+            <button class="btn-reset-schedule" onclick="resetTaskSchedule()">Reset</button>
         </div>
-    `;
-    html += '</div>'; // penutup task-input-card
-    html += `
         <div class="task-input-actions" style="border-top: none; padding-top: 0;">
-            <button class="btn-publish" onclick="confirmAndPublish()">
-                Kunci Jadwal
-            </button>
+            <button class="btn-publish" onclick="confirmAndPublish()">🔒 Kunci Jadwal</button>
         </div>
     `;
     html += '</div>';
@@ -428,42 +417,223 @@ async function changeUlok() {
     const selectedUlok = ulokSelect.value;
 
     if (!selectedUlok) {
-        currentProject = null; 
-        currentTasks = [];   
-        hasUserInput = false;   
-        showSelectProjectMessage(); 
-        renderApiData();            
+        currentProject = null;
+        currentTasks = [];
+        hasUserInput = false;
+        showSelectProjectMessage();
         return;
     }
 
     currentProject = projects.find(p => p.ulok === selectedUlok);
-    currentTasks = projectTasks[selectedUlok];
+    // Kita set currentTasks dari template dulu, nanti di-override fetchGanttData jika ada di DB
+    currentTasks = projectTasks[selectedUlok]; 
     hasUserInput = false;
+    isProjectLocked = false; // Reset lock state
     
     fetchGanttDataForSelection(selectedUlok);
 
-    console.log("✅ Selected project:", currentProject);
-
     renderProjectInfo();
-    showPleaseInputMessage();
     updateStats();
     document.getElementById('exportButtons').style.display = 'none';
 }
 
-// ==================== RENDER FUNCTIONS ====================
-function renderProjectInfo() {
-    if (!currentProject) return;
+// ==================== LOGIC SIMPAN & KUNCI (UPDATE) ====================
+function confirmAndPublish() {
+    // 1. Terapkan dulu input terakhir user ke variabel
+    const isValid = applyTaskSchedule(true); // true = silent mode (tanpa alert jika sukses)
+    if (!isValid) return;
 
-    const info = document.getElementById('projectInfo');
-    const startDate = currentProject.startDate ? new Date(currentProject.startDate) : new Date();
-    const tglMulai = formatDateID(startDate);
-
-    if (currentProject.durasi) {
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + currentProject.durasi);
-        tglSelesai = formatDateID(endDate);
+    // 2. Cek apakah ada data (durasi > 0)
+    const totalDuration = currentTasks.reduce((acc, t) => acc + t.duration, 0);
+    if (totalDuration === 0) {
+        alert("⚠️ Jadwal masih kosong. Mohon isi durasi dan klik 'Terapkan Jadwal'.");
+        return;
     }
 
+    const isSure = confirm(
+        "KONFIRMASI PENERBITAN JADWAL\n\n" +
+        "Apakah Anda yakin ingin MENGUNCI jadwal ini?\n" +
+        "Setelah dikunci, inputan akan hilang dan data tidak dapat diubah lagi.\n\n" +
+        "Lanjutkan?"
+    );
+
+    if (isSure) {
+        saveProjectSchedule();
+    }
+}
+
+async function saveProjectSchedule() {
+    if (!currentProject) return;
+
+    const userEmail = sessionStorage.getItem('loggedInUserEmail');
+    
+    // Siapkan Payload untuk Insert API
+    const payload = {
+        ulok: currentProject.ulokClean,  // ID Proyek Bersih
+        full_ulok: currentProject.ulok,  // ID Raw
+        lingkup: currentProject.work,    // ME atau Sipil
+        email: userEmail,                // Email Login
+        tasks: currentTasks.map(t => ({
+            id: t.id,
+            name: t.name,
+            start: t.start,
+            duration: t.duration,
+            dependencies: t.dependencies
+        })),
+        status_jadwal: 'published' // Flag untuk backend
+    };
+
+    // UI Loading state sederhana
+    const btnPublish = document.querySelector('.btn-publish');
+    const originalText = btnPublish ? btnPublish.innerText : 'Kunci Jadwal';
+    if(btnPublish) {
+        btnPublish.innerText = "⏳ Menyimpan...";
+        btnPublish.disabled = true;
+    }
+
+    try {
+        console.log("📤 Mengirim data ke:", ENDPOINTS.insertData, payload);
+
+        const response = await fetch(ENDPOINTS.insertData, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'Gagal menyimpan data');
+        }
+
+        // === SUKSES ===
+        alert("✅ Sukses! Jadwal berhasil diterbitkan.");
+        
+        // Kunci Interface
+        isProjectLocked = true;
+        renderApiData(); // Ini akan memicu tampilan "Terkunci" (form hilang)
+        renderChart(); // Refresh chart
+
+    } catch (error) {
+        console.error("❌ Error saving:", error);
+        alert("Gagal menyimpan: " + error.message);
+        if(btnPublish) {
+            btnPublish.innerText = originalText;
+            btnPublish.disabled = false;
+        }
+    }
+}
+
+// ==================== TASK MANIPULATION ====================
+function applyTaskSchedule(silentMode = false) {
+    if (!currentProject || !currentTasks.length) return false;
+
+    let hasError = false;
+    const updatedTasks = [];
+
+    // Loop elemen input DOM
+    for (const task of currentTasks) {
+        const startInput = document.getElementById(`task-start-${task.id}`);
+        const endInput = document.getElementById(`task-end-${task.id}`);
+
+        // Jika element input tidak ditemukan (misal karena sudah dilock), gunakan nilai lama
+        if (!startInput || !endInput) {
+            updatedTasks.push(task);
+            continue;
+        }
+
+        const startDay = parseInt(startInput.value) || 0;
+        const endDay = parseInt(endInput.value) || 0;
+
+        // Jika user sengaja mengisi 0, kita anggap reset row tsb
+        if (startDay === 0 && endDay === 0) {
+            updatedTasks.push({
+                ...task,
+                start: 0,
+                duration: 0,
+                inputData: { startDay: 0, endDay: 0 }
+            });
+            continue;
+        }
+
+        // Validasi Logika
+        if (endDay < startDay) {
+            alert(`Error pada ${task.name}: Hari selesai (${endDay}) tidak boleh lebih kecil dari hari mulai (${startDay})!`);
+            hasError = true;
+            break;
+        }
+
+        const duration = endDay - startDay + 1;
+
+        updatedTasks.push({
+            ...task,
+            start: startDay,
+            duration: duration,
+            inputData: { startDay, endDay }
+        });
+    }
+
+    if (hasError) return false;
+
+    // Update state global
+    currentTasks = updatedTasks;
+    projectTasks[currentProject.ulok] = updatedTasks; // Simpan di memori object
+    hasUserInput = true;
+
+    // Render ulang Chart
+    renderChart();
+    updateStats();
+    document.getElementById('exportButtons').style.display = 'flex';
+
+    if (!silentMode) {
+        // Scroll ke chart
+        document.getElementById('ganttChart').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    return true;
+}
+
+function resetTaskSchedule() {
+    if (!currentProject) return;
+    
+    // Reset data di memori
+    if (currentProject.work === 'ME') {
+        currentTasks = JSON.parse(JSON.stringify(taskTemplateME));
+    } else {
+        currentTasks = JSON.parse(JSON.stringify(taskTemplateSipil));
+    }
+    
+    projectTasks[currentProject.ulok] = currentTasks;
+    hasUserInput = false;
+
+    // Render ulang form menjadi 0 semua
+    renderApiData(); 
+    showPleaseInputMessage(); // Hapus chart, minta input
+    updateStats();
+    document.getElementById('exportButtons').style.display = 'none';
+}
+
+// ==================== HELPER API DATA (RAB) ====================
+function updateProjectFromRab(rabData) {
+    if (!rabData || !currentProject) return;
+    const getFirstNonEmpty = (keys) => {
+        for (const key of keys) {
+            const val = rabData[key];
+            if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+        }
+        return undefined;
+    };
+    const alamat = getFirstNonEmpty(['Alamat', 'alamat']);
+    if (alamat) currentProject.alamat = alamat;
+    const storeVal = getFirstNonEmpty(['Nama Toko', 'Store', 'Nama_Toko']);
+    if (storeVal) currentProject.store = storeVal;
+}
+
+// ==================== RENDERING (INFO & STATS) ====================
+function renderProjectInfo() {
+    if (!currentProject) return;
+    const info = document.getElementById('projectInfo');
+    
     let html = `
         <div class="project-detail">
             <div class="project-label">No. Ulok</div>
@@ -481,215 +651,66 @@ function renderProjectInfo() {
             <div class="project-label">Lingkup Pekerjaan</div>
             <div class="project-value">${currentProject.work}</div>
         </div>
-        <div class="project-detail">
-            <div class="project-label">Alamat</div>
-            <div class="project-value">${currentProject.alamat}</div>
-        </div>
     `;
     info.innerHTML = html;
 }
 
-function confirmAndPublish() {
-    // Pastikan data di variable currentTasks sudah update sesuai inputan terakhir
-    applyTaskSchedule(); 
-    
-    // Cek apakah user benar-benar sudah input (total durasi > 0)
-    const totalDuration = currentTasks.reduce((acc, t) => acc + t.duration, 0);
-    if (totalDuration === 0) {
-        alert("⚠️ Belum ada jadwal yang diisi. Mohon isi durasi terlebih dahulu.");
-        return;
-    }
-
-    const isSure = confirm(
-        "KONFIRMASI PENERBITAN JADWAL\n\n" +
-        "Apakah Anda yakin ingin MENGUNCI jadwal ini?\n" +
-        "Setelah diterbitkan:\n" +
-        "1. Data akan muncul di halaman PIC.\n" +
-        "2. Anda TIDAK BISA mengubah jadwal lagi.\n\n" +
-        "Lanjutkan?"
-    );
-
-    if (isSure) {
-        saveProjectSchedule('published');
-    }
-}
-
-async function saveProjectSchedule(statusType) {
+function updateStats() {
     if (!currentProject) return;
-
-    // Ambil data terbaru dari input form agar tidak ada yang terlewat
-    applyTaskSchedule(); // Ini akan memvalidasi dan mengupdate currentTasks
-    
-    // Jika applyTaskSchedule gagal (ada error validasi), jangan lanjut simpan
-    // (Anda mungkin perlu memodifikasi applyTaskSchedule agar me-return true/false)
-    
-    const saveStatus = document.getElementById('saveStatus');
-    if(saveStatus) saveStatus.innerHTML = '⏳ Sedang menyimpan...';
-
-    // Siapkan Data yang akan dikirim (Payload)
-    const payload = {
-        ulok: currentProject.ulok,          // ID Proyek
-        lingkup: currentProject.work,       // ME atau Sipil
-        tasks: currentTasks,                // Array Tahapan
-        status_jadwal: statusType,          // 'draft' atau 'published'
-        updated_at: new Date().toISOString()
-    };
-
-    console.log("📤 Mengirim data:", payload);
-
-    try {
-        const response = await fetch(ENDPOINTS.saveSchedule, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.message || 'Gagal menyimpan data');
-        }
-
-        // Sukses
-        if(saveStatus) {
-            saveStatus.innerHTML = statusType === 'published' 
-                ? '✅ Berhasil Terbit & Terkunci!' 
-                : '✅ Draft Berhasil Disimpan';
-            saveStatus.style.color = '#2f855a';
-        }
-
-        alert(statusType === 'published' 
-            ? "Sukses! Jadwal telah diterbitkan ke PIC." 
-            : "Sukses! Draft jadwal telah disimpan.");
-
-        // Jika status published, kunci tampilan
-        if (statusType === 'published') {
-            lockInterface();
-        }
-
-    } catch (error) {
-        console.error("❌ Error saving:", error);
-        if(saveStatus) {
-            saveStatus.innerHTML = '❌ Gagal Menyimpan';
-            saveStatus.style.color = '#e53e3e';
-        }
-        alert("Gagal menyimpan: " + error.message);
+    const inputedTasks = currentTasks.filter(t => t.duration > 0);
+    const totalInputed = inputedTasks.length;
+    let maxEnd = 0;
+    if (inputedTasks.length > 0) {
+        maxEnd = Math.max(...inputedTasks.map(t => t.start + t.duration - 1));
     }
-}
-// 3. Fungsi untuk mematikan form (Read-Only)
-function lockInterface() {
-    // Matikan semua input number
-    const inputs = document.querySelectorAll('.task-day-input');
-    inputs.forEach(input => {
-        input.disabled = true;
-        input.style.backgroundColor = "#e9ecef";
-        input.style.cursor = "not-allowed";
-    });
-
-    // Sembunyikan tombol aksi
-    const actionContainer = document.querySelector('.task-input-actions');
-    if (actionContainer) {
-        actionContainer.innerHTML = `
-            <div style="background: #c6f6d5; color: #22543d; padding: 10px; border-radius: 6px; width: 100%; text-align: center;">
-                🔒 <strong>Jadwal Terkunci</strong><br>
-                Data sudah diterbitkan dan tidak dapat diubah lagi.
-            </div>
-        `;
-    }
+    const stats = document.getElementById('stats');
+    stats.innerHTML = `
+        <div class="stat-card">
+            <div class="stat-value">${currentTasks.length}</div>
+            <div class="stat-label">Total Tahapan</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${totalInputed}</div>
+            <div class="stat-label">Tahapan Terinput</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${maxEnd}</div>
+            <div class="stat-label">Estimasi Selesai (hari)</div>
+        </div>
+    `;
 }
 
-// ==================== API DATA HELPERS ====================
-function updateProjectFromRab(rabData) {
-    if (!rabData || !currentProject) return;
-
-    const getFirstNonEmpty = (keys) => {
-        for (const key of keys) {
-            const val = rabData[key];
-            if (val !== undefined && val !== null && String(val).trim() !== '') return val;
-        }
-        return undefined;
-    };
-
-    const alamat = getFirstNonEmpty(['Alamat', 'alamat']);
-    if (alamat) currentProject.alamat = alamat;
-
-    const durasiRaw = getFirstNonEmpty(['Durasi', 'durasi']);
-    const durasiNum = durasiRaw ? parseInt(durasiRaw, 10) : null;
-    if (!Number.isNaN(durasiNum) && durasiNum > 0) currentProject.durasi = durasiNum;
-
-    const statusVal = getFirstNonEmpty(['Status', 'status']);
-    if (statusVal) currentProject.status = statusVal;
-
-    const proyekVal = getFirstNonEmpty(['Proyek', 'Jenis Proyek']);
-    if (proyekVal) currentProject.projectType = proyekVal;
-
-    const storeVal = getFirstNonEmpty(['Nama Toko', 'Store', 'Nama_Toko']);
-    if (storeVal) currentProject.store = storeVal;
-}
-
-function buildTasksFromRabCategories(categories) {
-    const tasks = [];
-    let cursor = 0;
-    const defaultDuration = 0;
-
-    categories.forEach((cat, idx) => {
-        tasks.push({
-            id: idx + 1,
-            name: cat,
-            start: cursor,
-            duration: defaultDuration,
-            dependencies: idx === 0 ? [] : [idx],
-        });
-    });
-
-    return tasks.length ? tasks : currentTasks;
-}
-
+// ==================== CHART RENDERING ====================
 function renderChart() {
     if (!currentProject) return;
-    
-    // Jangan render chart kalau belum ada input dari user
-    if (!hasUserInput) {
-        showPleaseInputMessage();
-        return;
-    }
-
     const chart = document.getElementById('ganttChart');
     const DAY_WIDTH = 40;
 
+    // Tentukan lebar chart
     let maxTaskEndDay = 0;
     currentTasks.forEach(task => {
         const end = task.start + task.duration;
         if (end > maxTaskEndDay) maxTaskEndDay = end;
     });
-
     const totalDaysToRender = Math.max(
         (currentProject.work === 'ME' ? totalDaysME : totalDaysSipil),
         maxTaskEndDay + 10
     );
-
     const totalChartWidth = totalDaysToRender * DAY_WIDTH;
     const projectStartDate = new Date(currentProject.startDate);
 
-    // RENDER HEADER
+    // Render Header
     let html = '<div class="chart-header">';
     html += '<div class="task-column">Tahapan</div>';
     html += `<div class="timeline-column" style="width: ${totalChartWidth}px;">`;
-
     for (let i = 0; i < totalDaysToRender; i++) {
         const currentDate = new Date(projectStartDate);
         currentDate.setDate(projectStartDate.getDate() + i);
-
         const dateNum = currentDate.getDate();
         const monthName = currentDate.toLocaleDateString('id-ID', { month: 'short' });
-
         const isSunday = currentDate.getDay() === 0;
-        const bgStyle = isSunday ? 'background-color: #ffe3e3;' : '';
-
         html += `
-            <div class="day-header" style="width: ${DAY_WIDTH}px; ${bgStyle}">
+            <div class="day-header" style="width: ${DAY_WIDTH}px; ${isSunday ? 'background-color:#ffe3e3;' : ''}">
                 <span class="d-date">${dateNum}</span>
                 <span class="d-month">${monthName}</span>
             </div>
@@ -697,47 +718,39 @@ function renderChart() {
     }
     html += '</div></div>';
 
-    // RENDER BODY (TASKS)
+    // Render Body
     html += '<div class="chart-body">';
-
     currentTasks.forEach(task => {
-        // Skip jika duration masih 0
-        if (task.duration === 0) return;
-
-        const taskRealStart = new Date(projectStartDate);
-        taskRealStart.setDate(projectStartDate.getDate() + (task.start - 1));
-
-        const taskRealEnd = new Date(taskRealStart);
-        taskRealEnd.setDate(taskRealStart.getDate() + task.duration);
+        if (task.duration === 0) return; // Skip yang 0 durasi
 
         const leftPos = (task.start - 1) * DAY_WIDTH;
         const widthPos = task.duration * DAY_WIDTH;
-
-        const barClass = 'on-time';
-
-        const tooltipText = `${task.name}\n${formatDateID(taskRealStart)} s/d ${formatDateID(taskRealEnd)}\n(${task.duration} hari)`;
-
+        
+        // Tgl asli
+        const tStart = new Date(projectStartDate); 
+        tStart.setDate(projectStartDate.getDate() + (task.start - 1));
+        const tEnd = new Date(tStart);
+        tEnd.setDate(tStart.getDate() + task.duration);
+        
         html += '<div class="task-row">';
         html += `<div class="task-name">
             <span>${task.name}</span>
             <span class="task-duration">Durasi: ${task.duration} hari</span>
         </div>`;
         html += `<div class="timeline" style="width: ${totalChartWidth}px;">`;
-        html += `<div class="bar ${barClass}" data-task-id="${task.id}" 
+        html += `<div class="bar on-time" data-task-id="${task.id}" 
                 style="left: ${leftPos}px; width: ${widthPos}px;" 
-                title="${tooltipText}">
+                title="${task.name}: ${formatDateID(tStart)} - ${formatDateID(tEnd)}">
             ${task.duration}h
         </div>`;
         html += '</div></div>';
     });
-
     html += '</div>';
 
     chart.innerHTML = html;
-
-    setTimeout(() => {
-        drawDependencyLines();
-    }, 50);
+    
+    // Draw lines after render
+    setTimeout(drawDependencyLines, 50);
 }
 
 function drawDependencyLines() {
@@ -751,9 +764,7 @@ function drawDependencyLines() {
     svg.classList.add('dependency-svg');
     svg.style.width = `${chartBody.scrollWidth}px`;
     svg.style.height = `${chartBody.scrollHeight}px`;
-
     chartBody.appendChild(svg);
-
     const bodyRect = chartBody.getBoundingClientRect();
 
     currentTasks.forEach(task => {
@@ -761,28 +772,18 @@ function drawDependencyLines() {
             task.dependencies.forEach(depId => {
                 const fromBar = document.querySelector(`.bar[data-task-id="${depId}"]`);
                 const toBar = document.querySelector(`.bar[data-task-id="${task.id}"]`);
-
                 if (fromBar && toBar) {
-                    const fromRect = fromBar.getBoundingClientRect();
-                    const toRect = toBar.getBoundingClientRect();
-
-                    const x1 = (fromRect.right - bodyRect.left) + chartBody.scrollLeft;
-                    const y1 = (fromRect.top + fromRect.height / 2 - bodyRect.top) + chartBody.scrollTop;
-
-                    const x2 = (toRect.left - bodyRect.left) + chartBody.scrollLeft;
-                    const y2 = (toRect.top + toRect.height / 2 - bodyRect.top) + chartBody.scrollTop;
-
-                    const deltaX = x2 - x1;
-                    const curveAmount = Math.max(Math.abs(deltaX / 2), 40);
-
-                    const d = `M ${x1} ${y1} C ${x1 + curveAmount} ${y1}, ${x2 - curveAmount} ${y2}, ${x2} ${y2}`;
-
+                    const r1 = fromBar.getBoundingClientRect();
+                    const r2 = toBar.getBoundingClientRect();
+                    const x1 = (r1.right - bodyRect.left) + chartBody.scrollLeft;
+                    const y1 = (r1.top + r1.height / 2 - bodyRect.top) + chartBody.scrollTop;
+                    const x2 = (r2.left - bodyRect.left) + chartBody.scrollLeft;
+                    const y2 = (r2.top + r2.height / 2 - bodyRect.top) + chartBody.scrollTop;
+                    
+                    const d = `M ${x1} ${y1} C ${x1 + 20} ${y1}, ${x2 - 20} ${y2}, ${x2} ${y2}`;
                     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     path.setAttribute('d', d);
                     path.classList.add('dependency-line');
-                    path.setAttribute('stroke', '#adb5bd');
-                    path.setAttribute('stroke-width', '2');
-                    path.setAttribute('fill', 'none');
                     svg.appendChild(path);
                 }
             });
@@ -790,178 +791,31 @@ function drawDependencyLines() {
     });
 }
 
-// ==================== TASK MANIPULATION ====================
-function applyTaskSchedule() {
-    if (!currentProject || !currentTasks.length) {
-        alert('Pilih No. Ulok terlebih dahulu!');
-        return;
-    }
-
-    let hasError = false;
-    const updatedTasks = [];
-
-    currentTasks.forEach(task => {
-        const startInput = document.getElementById(`task-start-${task.id}`);
-        const endInput = document.getElementById(`task-end-${task.id}`);
-
-        if (!startInput || !endInput) return;
-
-        const startDay = parseInt(startInput.value);
-        const endDay = parseInt(endInput.value);
-
-        // Validasi
-        if (isNaN(startDay) || isNaN(endDay)) {
-            alert(`Error pada ${task.name}: Hari mulai dan selesai harus diisi!`);
-            hasError = true;
-            return;
-        }
-
-        if (startDay < 1 || endDay < 1) {
-            alert(`Error pada ${task.name}: Hari mulai dan selesai harus minimal 1!`);
-            hasError = true;
-            return;
-        }
-
-        if (endDay < startDay) {
-            alert(`Error pada ${task.name}: Hari selesai tidak boleh lebih kecil dari hari mulai!`);
-            hasError = true;
-            return;
-        }
-
-        const duration = endDay - startDay + 1;
-
-        // Update task
-        updatedTasks.push({
-            ...task,
-            start: startDay,
-            duration: duration,
-            inputData: { startDay, endDay }
-        });
-    });
-
-    if (hasError) return;
-
-    // Apply updated tasks
-    currentTasks = updatedTasks;
-    projectTasks[currentProject.ulok] = updatedTasks;
-    hasUserInput = true;
-
-    // Render chart dan update stats
-    renderChart();
-    updateStats();
-    document.getElementById('exportButtons').style.display = 'flex';
-
-    return true;
-}
-
-function resetTaskSchedule() {
-    if (!currentProject) {
-        alert('Pilih No. Ulok terlebih dahulu!');
-        return;
-    }
-
-    // Reset ke template default (semua durasi 0)
-    if (currentProject.work === 'ME') {
-        projectTasks[currentProject.ulok] = JSON.parse(JSON.stringify(taskTemplateME));
-    } else {
-        projectTasks[currentProject.ulok] = JSON.parse(JSON.stringify(taskTemplateSipil));
-    }
-
-    currentTasks = projectTasks[currentProject.ulok];
-    hasUserInput = false;
-
-    // Re-render form dan hide chart
-    renderApiData();
-    showPleaseInputMessage();
-    updateStats();
-    document.getElementById('exportButtons').style.display = 'none';
-
-    alert('🔄 Jadwal telah direset ke 0.');
-}
-
-function updateStats() {
-    if (!currentProject) return;
-
-    // Hitung total tahapan yang sudah diinput (duration > 0)
-    const inputedTasks = currentTasks.filter(t => t.duration > 0);
-    const totalInputed = inputedTasks.length;
-    
-    // Hitung max end day
-    let maxEnd = 0;
-    if (inputedTasks.length > 0) {
-        maxEnd = Math.max(...inputedTasks.map(t => t.start + t.duration - 1));
-    }
-
-    const stats = document.getElementById('stats');
-    stats.innerHTML = `
-        <div class="stat-card">
-            <div class="stat-value">${currentTasks.length}</div>
-            <div class="stat-label">Total Tahapan</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">${totalInputed}</div>
-            <div class="stat-label">Tahapan Terinput</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">${currentTasks.length - totalInputed}</div>
-            <div class="stat-label">Belum Diinput</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">${maxEnd}</div>
-            <div class="stat-label">Estimasi Selesai (hari)</div>
-        </div>
-    `;
-}
-
-// ==================== EXPORT FUNCTIONS ====================
+// ==================== EXPORT EXCEL ====================
 function exportToExcel() {
-    if (!currentProject || !hasUserInput) {
-        alert('Silakan input jadwal terlebih dahulu!');
-        return;
-    }
-    
+    if (!currentProject || !currentTasks.length) return;
     const startDate = new Date(currentProject.startDate);
-
     const data = [
         ["Laporan Jadwal Proyek"],
         ["No. Ulok", currentProject.ulok],
-        ["Jenis Proyek", currentProject.projectType],
         ["Nama Toko", currentProject.store],
-        ["Pekerjaan", currentProject.work],
-        ["Alamat", currentProject.alamat],
         [],
-        ["No", "Tahapan", "Mulai", "Selesai", "Durasi", "Status"]
+        ["No", "Tahapan", "Mulai", "Selesai", "Durasi"]
     ];
-
     currentTasks.forEach((task, i) => {
-        if (task.duration === 0) return; // Skip yang belum diinput
-        
-        const tStart = new Date(startDate);
-        tStart.setDate(startDate.getDate() + (task.start - 1));
-        const tEnd = new Date(tStart);
-        tEnd.setDate(tStart.getDate() + task.duration - 1);
-        data.push([
-            i + 1,
-            task.name,
-            formatDateID(tStart),
-            formatDateID(tEnd),
-            task.duration,
-            "Berjalan"
-        ]);
+        if (task.duration === 0) return;
+        const tStart = new Date(startDate); tStart.setDate(startDate.getDate() + (task.start - 1));
+        const tEnd = new Date(tStart); tEnd.setDate(tStart.getDate() + task.duration - 1);
+        data.push([i+1, task.name, formatDateID(tStart), formatDateID(tEnd), task.duration]);
     });
-
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Jadwal");
-    XLSX.writeFile(wb, `Jadwal_${currentProject.ulok}.xlsx`);
+    XLSX.writeFile(wb, `Jadwal_${currentProject.ulokClean}.xlsx`);
 }
 
-// ==================== EVENT LISTENERS ====================
-window.addEventListener('resize', () => {
-    if (currentProject && hasUserInput) {
-        drawDependencyLines();
-    }
-});
-
-// ==================== START APPLICATION ====================
+// ==================== START ====================
 loadDataAndInit();
+window.addEventListener('resize', () => {
+    if (currentProject && hasUserInput) drawDependencyLines();
+});

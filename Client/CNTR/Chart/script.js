@@ -252,7 +252,7 @@ async function fetchGanttDataForSelection(selectedValue) {
 
     const { ulok, lingkup } = extractUlokAndLingkup(selectedValue);
     isLoadingGanttData = true;
-    ganttApiError = null; // Reset error sebelum mulai
+    ganttApiError = null;
     renderApiData();
 
     const url = `${ENDPOINTS.ganttData}?ulok=${encodeURIComponent(ulok)}&lingkup=${encodeURIComponent(lingkup)}`;
@@ -260,27 +260,22 @@ async function fetchGanttDataForSelection(selectedValue) {
     try {
         const response = await fetch(url);
         
-        // Jika status 404 (Data tidak ditemukan), anggap sebagai proyek baru (bukan error)
         if (response.status === 404) {
             throw new Error("DATA_NOT_FOUND");
         }
 
         const data = await response.json();
-
         if (!response.ok) throw new Error(data.message || 'Error fetch');
 
         ganttApiData = data;
 
-        // Update Project Info dari RAB (alamat, dll)
         if (currentProject && data?.rab) {
             updateProjectFromRab(data.rab);
         }
 
-        // === CEK APAKAH ADA DATA DI DATABASE ===
         if (data.existing_tasks && Array.isArray(data.existing_tasks) && data.existing_tasks.length > 0) {
-            console.log("📥 Data tasks ditemukan dari database.");
+            console.log("📥 Data ditemukan. Status:", data.Status || data.status_jadwal);
             
-            // Map data dari DB ke struktur tasks kita
             currentTasks = data.existing_tasks.map(t => ({
                 id: t.id,
                 name: t.name,
@@ -293,27 +288,24 @@ async function fetchGanttDataForSelection(selectedValue) {
             projectTasks[selectedValue] = currentTasks;
             hasUserInput = true;
 
-            // Cek status terkunci
-            if (data.status_jadwal === 'published' || data.is_locked === true) {
+            const dbStatus = data.Status || data.status || data.status_jadwal || '';
+            
+            if (dbStatus === 'Terkunci' || dbStatus === 'published' || data.is_locked === true) {
                 isProjectLocked = true;
+                console.log("🔒 Project status is Locked/Terkunci");
             } else {
                 isProjectLocked = false;
             }
 
         } else {
-            // Jika sukses fetch tapi data kosong (Proyek baru)
             throw new Error("DATA_EMPTY"); 
         }
 
     } catch (error) {
-        // === FALLBACK: JIKA ERROR / DATA TIDAK ADA, GUNAKAN TEMPLATE ===
-        console.warn('⚠️ Menggunakan template default (Data server tidak ditemukan/error):', error.message);
-        
-        // Reset Error variable agar form tetap muncul (PENTING!)
+        console.warn('⚠️ Menggunakan template default:', error.message);
         ganttApiError = null; 
 
         if (currentProject) {
-            // Reset ke template
             if (currentProject.work === 'ME') {
                 currentTasks = JSON.parse(JSON.stringify(taskTemplateME));
             } else {
@@ -321,14 +313,13 @@ async function fetchGanttDataForSelection(selectedValue) {
             }
             projectTasks[selectedValue] = currentTasks;
             hasUserInput = false;
-            isProjectLocked = false;
+            isProjectLocked = false; // Default tidak terkunci
         }
 
     } finally {
         isLoadingGanttData = false;
-        
         renderProjectInfo();
-        renderApiData(); // Sekarang form akan muncul meskipun fetch gagal
+        renderApiData(); // Render ulang UI (Form akan hilang jika isProjectLocked = true)
         
         if (hasUserInput) {
             renderChart();
@@ -450,55 +441,58 @@ async function changeUlok() {
 
 // ==================== LOGIC SIMPAN & KUNCI (UPDATE) ====================
 function confirmAndPublish() {
-    // 1. Terapkan dulu input terakhir user ke variabel
-    const isValid = applyTaskSchedule(true); // true = silent mode (tanpa alert jika sukses)
-    if (!isValid) return;
-
-    // 2. Cek apakah ada data (durasi > 0)
+    // Cek apakah data sudah ada
     const totalDuration = currentTasks.reduce((acc, t) => acc + t.duration, 0);
     if (totalDuration === 0) {
-        alert("⚠️ Jadwal masih kosong. Mohon isi durasi dan klik 'Terapkan Jadwal'.");
+        alert("⚠️ Jadwal masih kosong. Mohon isi durasi dan klik 'Terapkan Jadwal' terlebih dahulu.");
         return;
     }
 
     const isSure = confirm(
-        "KONFIRMASI PENERBITAN JADWAL\n\n" +
+        "KONFIRMASI PENGUNCIAN JADWAL\n\n" +
         "Apakah Anda yakin ingin MENGUNCI jadwal ini?\n" +
         "Setelah dikunci, inputan akan hilang dan data tidak dapat diubah lagi.\n\n" +
         "Lanjutkan?"
     );
 
     if (isSure) {
-        saveProjectSchedule();
+        // Panggil fungsi simpan dengan status "Terkunci"
+        saveProjectSchedule("Terkunci");
     }
 }
 
-async function saveProjectSchedule() {
+async function saveProjectSchedule(statusType = "Active") {
     if (!currentProject) return;
 
     const userEmail = sessionStorage.getItem('loggedInUserEmail') || "user@unknown.com";
 
+    // Validasi dasar
     if (!currentProject.ulokClean || !currentProject.work) {
         alert("⚠️ Data proyek tidak lengkap. Silakan refresh halaman.");
         return;
     }
 
+    // Tentukan pesan sukses berdasarkan status
+    const isLocking = statusType === "Terkunci";
+    const loadingText = isLocking ? "🔒 Mengunci..." : "💾 Menyimpan...";
+    
+    // Siapkan Payload
     const payload = {
-        "Nomor Ulok": currentProject.ulokClean, // Key pakai SPASI sesuai request
-        "Lingkup_Pekerjaan": currentProject.work.toUpperCase(), // Contoh: "SIPIL"
-        "Status": "Active",
+        "Nomor Ulok": currentProject.ulokClean,
+        "Lingkup_Pekerjaan": currentProject.work.toUpperCase(),
+        "Status": statusType, // <--- DINAMIS ("Active" atau "Terkunci")
         "Email_Pembuat": userEmail,
         "Proyek": currentProject.projectType || "Reguler",
         "Alamat": currentProject.alamat || "-",
-        "Cabang": "HEAD OFFICE", // Default (bisa disesuaikan jika ada datanya)
+        "Cabang": "HEAD OFFICE",
         "Nama_Toko": currentProject.store || "-",
-        "Nama_Kontraktor": "PT KONTRAKTOR", // Default (atau ambil dari session jika ada)
+        "Nama_Kontraktor": "PT KONTRAKTOR",
     };
 
-    const projectStartDate = new Date(currentProject.startDate); // Pastikan format YYYY-MM-DD
+    // Konversi Data Tahapan ke Format Tanggal
+    const projectStartDate = new Date(currentProject.startDate);
 
     currentTasks.forEach((task) => {
-
         const tStart = new Date(projectStartDate);
         tStart.setDate(projectStartDate.getDate() + (task.start - 1));
 
@@ -511,18 +505,23 @@ async function saveProjectSchedule() {
         payload[`Kategori_${task.id}`] = task.name;
         payload[`Hari_Mulai_Kategori_${task.id}`] = formatDateISO(tStart);
         payload[`Hari_Selesai_Kategori_${task.id}`] = formatDateISO(tEnd);
-        payload[`Keterlambatan_Kategori_${task.id}`] = "0"; // Default 0
+        payload[`Keterlambatan_Kategori_${task.id}`] = "0";
     });
 
-    const btnPublish = document.querySelector('.btn-publish');
-    const originalText = btnPublish ? btnPublish.innerText : 'Kunci Jadwal';
-    if(btnPublish) {
-        btnPublish.innerText = "⏳ Menyimpan...";
-        btnPublish.disabled = true;
+    // Indikator Loading di Tombol yang sesuai
+    const btnTarget = isLocking 
+        ? document.querySelector('.btn-publish') 
+        : document.querySelector('.btn-apply-schedule');
+        
+    const originalText = btnTarget ? btnTarget.innerText : (isLocking ? 'Kunci Jadwal' : 'Terapkan Jadwal');
+    
+    if(btnTarget) {
+        btnTarget.innerText = loadingText;
+        btnTarget.disabled = true;
     }
 
     try {
-        console.log("📤 Mengirim Payload Final:", payload); // Cek console untuk memastikan format benar
+        console.log(`📤 Mengirim Data (${statusType}):`, payload);
 
         const response = await fetch(ENDPOINTS.insertData, {
             method: 'POST',
@@ -536,18 +535,27 @@ async function saveProjectSchedule() {
             throw new Error(result.message || 'Gagal menyimpan data ke server');
         }
 
-        alert("✅ Sukses! Data berhasil disimpan ke Database/Sheets.");
+        // === SUKSES ===
+        if (isLocking) {
+            alert("✅ Sukses! Jadwal telah DIKUNCI.");
+            isProjectLocked = true; // Update state lokal jadi terkunci
+        } else {
+            // Jika hanya Active (Terapkan Jadwal), beri notif kecil atau alert
+            alert("✅ Data tersimpan sebagai 'Active'.");
+            isProjectLocked = false;
+        }
 
-        isProjectLocked = true;
+        // Render ulang UI sesuai status baru
         renderApiData(); 
         renderChart(); 
 
     } catch (error) {
         console.error("❌ Error saving:", error);
-        alert("Gagal menyimpan: " + error.message);
-        if(btnPublish) {
-            btnPublish.innerText = originalText;
-            btnPublish.disabled = false;
+        alert(`Gagal menyimpan (${statusType}): ` + error.message);
+    } finally {
+        if(btnTarget) {
+            btnTarget.innerText = originalText;
+            btnTarget.disabled = false;
         }
     }
 }
@@ -559,63 +567,43 @@ function applyTaskSchedule(silentMode = false) {
     let hasError = false;
     const updatedTasks = [];
 
-    // Loop elemen input DOM
     for (const task of currentTasks) {
         const startInput = document.getElementById(`task-start-${task.id}`);
         const endInput = document.getElementById(`task-end-${task.id}`);
 
-        // Jika element input tidak ditemukan (misal karena sudah dilock), gunakan nilai lama
         if (!startInput || !endInput) {
             updatedTasks.push(task);
             continue;
         }
-
         const startDay = parseInt(startInput.value) || 0;
         const endDay = parseInt(endInput.value) || 0;
-
-        // Jika user sengaja mengisi 0, kita anggap reset row tsb
         if (startDay === 0 && endDay === 0) {
-            updatedTasks.push({
-                ...task,
-                start: 0,
-                duration: 0,
-                inputData: { startDay: 0, endDay: 0 }
-            });
+            updatedTasks.push({ ...task, start: 0, duration: 0, inputData: { startDay: 0, endDay: 0 } });
             continue;
         }
-
-        // Validasi Logika
         if (endDay < startDay) {
             alert(`Error pada ${task.name}: Hari selesai (${endDay}) tidak boleh lebih kecil dari hari mulai (${startDay})!`);
             hasError = true;
             break;
         }
-
         const duration = endDay - startDay + 1;
-
-        updatedTasks.push({
-            ...task,
-            start: startDay,
-            duration: duration,
-            inputData: { startDay, endDay }
-        });
+        updatedTasks.push({ ...task, start: startDay, duration: duration, inputData: { startDay, endDay } });
     }
 
     if (hasError) return false;
 
-    // Update state global
     currentTasks = updatedTasks;
-    projectTasks[currentProject.ulok] = updatedTasks; // Simpan di memori object
+    projectTasks[currentProject.ulok] = updatedTasks;
     hasUserInput = true;
 
-    // Render ulang Chart
     renderChart();
     updateStats();
     document.getElementById('exportButtons').style.display = 'flex';
 
     if (!silentMode) {
-        // Scroll ke chart
         document.getElementById('ganttChart').scrollIntoView({ behavior: 'smooth' });
+
+        saveProjectSchedule("Active");
     }
 
     return true;

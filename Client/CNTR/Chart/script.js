@@ -475,15 +475,14 @@ function confirmAndPublish() {
 
 async function saveProjectSchedule() {
     if (!currentProject) return;
-
     const userEmail = sessionStorage.getItem('loggedInUserEmail');
-    
-    // Siapkan Payload untuk Insert API
     const payload = {
-        ulok: currentProject.ulokClean,  // ID Proyek Bersih
-        full_ulok: currentProject.ulok,  // ID Raw
-        lingkup: currentProject.work,    // ME atau Sipil
-        email: userEmail,                // Email Login
+        Nomor_Ulok: currentProject.ulokClean, 
+        Lingkup_Pekerjaan: currentProject.work,   
+        email: userEmail,
+
+        full_ulok: currentProject.ulok,
+        
         tasks: currentTasks.map(t => ({
             id: t.id,
             name: t.name,
@@ -491,10 +490,9 @@ async function saveProjectSchedule() {
             duration: t.duration,
             dependencies: t.dependencies
         })),
-        status_jadwal: 'published' // Flag untuk backend
+        status_jadwal: 'published'
     };
 
-    // UI Loading state sederhana
     const btnPublish = document.querySelector('.btn-publish');
     const originalText = btnPublish ? btnPublish.innerText : 'Kunci Jadwal';
     if(btnPublish) {
@@ -503,7 +501,7 @@ async function saveProjectSchedule() {
     }
 
     try {
-        console.log("📤 Mengirim data ke:", ENDPOINTS.insertData, payload);
+        console.log("📤 Mengirim data payload:", payload); // Debugging: Cek console browser untuk melihat data yang dikirim
 
         const response = await fetch(ENDPOINTS.insertData, {
             method: 'POST',
@@ -522,8 +520,8 @@ async function saveProjectSchedule() {
         
         // Kunci Interface
         isProjectLocked = true;
-        renderApiData(); // Ini akan memicu tampilan "Terkunci" (form hilang)
-        renderChart(); // Refresh chart
+        renderApiData(); 
+        renderChart(); 
 
     } catch (error) {
         console.error("❌ Error saving:", error);
